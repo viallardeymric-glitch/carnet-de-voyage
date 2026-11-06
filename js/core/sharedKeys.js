@@ -4,14 +4,16 @@ import { useEffect } from '../../vendor/preact.js';
 import { store } from './store.js';
 import { ls } from './config.js';
 
-const NAMES = ['google', 'gemini', 'groq', 'claude'];
+const NAMES = ['google', 'gemini', 'groq', 'claude', 'vaultKey', 'vaultTrip'];
+const PLAIN = { vaultKey: 'vaultKey', vaultTrip: 'vaultTrip' }; // rangées telles quelles dans ls
 let currentPath = null;
 
 function localKeys() {
   const ai = ls.get('ai_keys', {}) || {};
-  return { google: ls.get('googleKey', null), gemini: ai.gemini || null, groq: ai.groq || null, claude: ai.claude || ls.get('claude_api_key', null) || null };
+  return { vaultKey: ls.get('vaultKey', null), vaultTrip: ls.get('vaultTrip', null), google: ls.get('googleKey', null), gemini: ai.gemini || null, groq: ai.groq || null, claude: ai.claude || ls.get('claude_api_key', null) || null };
 }
 function setLocal(name, value) {
+  if (PLAIN[name]) return ls.set(PLAIN[name], value || null);
   if (name === 'google') return ls.set('googleKey', value || null);
   const ai = ls.get('ai_keys', {}) || {};
   if (value) ai[name] = value;

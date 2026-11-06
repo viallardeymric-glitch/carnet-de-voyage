@@ -1,7 +1,10 @@
 // Coffre-fort : billets, QR codes, PDF, confirmations. Face ID ou code à chaque ouverture.
 // Fichiers chiffrés (AES-256) et stockés uniquement sur ce téléphone, lisibles hors-ligne.
 import { html, useEffect, useState } from '../../vendor/preact.js';
-import { listDocs, addFile, addBooking, removeDoc, openFile } from '../core/vault.js';
+import { listDocs, addFile, addBooking, removeDoc, openFile, useSharedVault, onVaultChange } from '../core/vault.js';
+import { useApp } from '../core/app.js';
+import { ls } from '../core/config.js';
+import { pushKey } from '../core/sharedKeys.js';
 import { biometricsEnabled, verifyBiometrics, checkPin, pinLength } from '../core/lock.js';
 import { parseBooking, KIND_LABELS } from '../lib/bookingParser.js';
 import PinPad from '../ui/PinPad.js';
@@ -23,11 +26,30 @@ export default function VaultView() {
   const bio = biometricsEnabled();
   const len = pinLength();
 
+  const { mode, user, tripId } = useApp();
+  // Coffre commun : rangé dans un voyage « maison » fixe, pour retrouver passeports et billets partout.
+  let home = null;
+  if (mode === 'firebase' && user && tripId) {
+    home = ls.get('vaultTrip', null);
+    if (!home) {
+      home = tripId;
+      ls.set('vaultTrip', home);
+      pushKey('vaultTrip', home);
+    }
+  }
+  const sharedPath = home ? `trips/${home}/meta` : null;
   const refresh = async () => setDocs(await listDocs());
   useEffect(() => {
-    if (open) refresh();
-    return () => viewer && URL.revokeObjectURL(viewer.url);
-  }, [open]);
+    if (!open) return undefined;
+    const stop = useSharedVault(sharedPath);
+    const off = onVaultChange(refresh);
+    refresh();
+    return () => {
+      off();
+      stop();
+    };
+  }, [open, sharedPath]);
+  useEffect(() => () => viewer && URL.revokeObjectURL(viewer.url), []);
 
   const faceId = async () => (await verifyBiometrics()) && setOpen(true);
   const onPin = async (v) => {
@@ -41,9 +63,13 @@ export default function VaultView() {
   const importFile = async (e) => {
     const files = [...e.target.files];
     e.target.value = '';
-    for (const f of files) await addFile(f, { title: files.length === 1 && title ? title : f.name.replace(/\.[^.]+$/, ''), kind });
+    try {
+      for (const f of files) await addFile(f, { title: files.length === 1 && title ? title : f.name.replace(/\.[^.]+$/, ''), kind });
+      toast(sharedPath ? `${files.length} document(s) chiffré(s) et partagé(s) avec l'autre téléphone` : `${files.length} document(s) chiffré(s) et rangé(s)`);
+    } catch (err) {
+      toast(err.message);
+    }
     setTitle('');
-    toast(`${files.length} document(s) chiffré(s) et rangé(s)`);
     refresh();
   };
 
@@ -56,7 +82,13 @@ export default function VaultView() {
     refresh();
   };
 
-  const show = async (d) => setViewer({ ...d, url: await openFile(d.id) });
+  const show = async (d) => {
+    try {
+      setViewer({ ...d, url: await openFile(d.id) });
+    } catch (e) {
+      toast(e.message);
+    }
+  };
   const close = () => {
     URL.revokeObjectURL(viewer.url);
     setViewer(null);
@@ -75,7 +107,9 @@ export default function VaultView() {
 
   return html`<div class="page">
     <${SafetyBox} title="Sécurité des documents" icon="shield-halved">
-      <p>Vos fichiers sont chiffrés (AES-256) et restent uniquement sur ce téléphone : rien n'est envoyé sur Internet. Importez les billets sur les deux téléphones, et gardez les originaux dans vos emails.</p>
+      ${sharedPath
+        ? html`<p><b>Coffre commun</b> : ce que l'un ajoute apparaît chez l'autre. Les fichiers sont chiffrés (AES-256) sur le téléphone avant d'être envoyés : seuls vos deux téléphones peuvent les lire, et ils restent disponibles hors-ligne.</p>`
+        : html`<p>Vos fichiers sont chiffrés (AES-256) et restent sur ce téléphone. Activez la synchronisation pour partager le coffre avec l'autre téléphone.</p>`}
     </${SafetyBox}>
 
     <${Subtitle}>Ajouter</${Subtitle}>
