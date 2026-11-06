@@ -341,3 +341,4 @@ html[data-dark] .card .input { background: #24272D; }
 .history p { margin: 0 0 8px; font-size: 14px; line-height: 1.55; }
 .linkbtn { background: none; border: 0; padding: 4px 0; color: var(--navy); font-weight: 700; font-size: 13px; cursor: pointer; display: inline-flex; gap: 5px; align-items: center; }
 .trav-ico { width: 36px; height: 36px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; background: var(--soft); color: var(--navy); flex-shrink: 0; }
+.day i.fa-solid { width: auto; height: auto; background: none; border-radius: 0; margin-right: 2px; }

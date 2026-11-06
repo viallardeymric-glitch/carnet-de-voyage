@@ -111,7 +111,7 @@ export default function MapView() {
   const [ohReady, setOhReady] = useState(false);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
-  const [day, setDay] = useState(0); // 0 = tout le séjour
+  const [day, setDay] = useState(() => Number(sessionStorage.getItem('cdv-mapday') || 0)); // 0 = tout le séjour, -1 = planning masqué
   const [sel, setSel] = useState(null);
   const [is3d, setIs3d] = useState(true);
   const [bearing, setBearing] = useState(0);
@@ -230,7 +230,7 @@ export default function MapView() {
   const visibleSaved = useMemo(
     () =>
       saved
-        .filter((s) => s.lat != null && (!day || s.day === day))
+        .filter((s) => s.lat != null && day !== -1 && (!day || s.day === day))
         .filter((s) => !openOnly || isOpenNow(s, cc) !== false),
     [saved, day, openOnly, ohReady]
   );
@@ -248,7 +248,7 @@ export default function MapView() {
     if (!src) return;
     const start = trip?.lodging ? [[trip.lodging.lon, trip.lodging.lat]] : [];
     const features = Object.entries(plan)
-      .filter(([d]) => !day || Number(d) === day)
+      .filter(([d]) => day !== -1 && (!day || Number(d) === day))
       .map(([d, list]) => ({
         type: 'Feature',
         properties: { color: dayColor(Number(d)) },
@@ -333,6 +333,8 @@ export default function MapView() {
   const pickDay = (d) => {
     const next = day === d ? 0 : d;
     setDay(next);
+    sessionStorage.setItem('cdv-mapday', String(next));
+    if (next === -1) return setSel(null);
     setSel(null);
     const list = next ? plan[next] || [] : saved.filter((p) => p.lat != null);
     const pts = [...list, ...(trip?.lodging ? [trip.lodging] : [])];
@@ -436,6 +438,7 @@ export default function MapView() {
         : null}
       ${days.length
         ? html`<div class="daybar">
+            <button class=${`day ${day === -1 ? 'on' : ''}`} style="--c:#5B6B7F" onClick=${() => pickDay(-1)} aria-label="Masquer le planning"><${Icon} name="eye-slash" /> Masquer</button>
             <button class=${`day ${day === 0 ? 'on' : ''}`} style="--c:var(--navy)" onClick=${() => pickDay(0)}>Tout</button>
             ${days.map(
               (d) => html`<button class=${`day ${day === d.index ? 'on' : ''}`} style=${`--c:${dayColor(d.index)}`} onClick=${() => pickDay(d.index)}>
