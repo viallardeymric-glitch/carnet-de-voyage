@@ -14,7 +14,7 @@ import { isOpenNow, loadOpeningHours } from '../lib/openNow.js';
 import { distanceMeters, formatDistance, familyWalkMinutes } from '../lib/geo.js';
 import { tripDays, formatDay, dayColor } from '../lib/dates.js';
 import { openDirections } from '../lib/routing.js';
-import { savePlace } from '../lib/trips.js';
+import { savePlace, verifyLodging } from '../lib/trips.js';
 import { Chip, Icon, MemberBadge, Thumb } from '../ui/components.js';
 import { toast } from '../ui/dialogs.js';
 
@@ -308,6 +308,13 @@ export default function MapView() {
     );
   }, [ready, visibleSaved, plan]);
 
+  useEffect(() => {
+    verifyLodging(trip, tripId).then((fixed) => {
+      if (!fixed) return;
+      toast(`Hébergement replacé au bon endroit : ${fixed.address || trip.city?.name}`);
+      map.current?.flyTo({ center: [fixed.lon, fixed.lat], zoom: 15, duration: 1600 });
+    });
+  }, [tripId, !!trip?.city, trip?.lodging?.verified]);
   const lodgingPlace = trip?.lodging ? { ...trip.lodging, category: 'monuments', isLodging: true } : null;
   useEffect(() => {
     if (!ready) return;

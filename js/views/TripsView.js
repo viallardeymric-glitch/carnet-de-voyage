@@ -69,7 +69,7 @@ export default function TripsView() {
     if (!city) return toast('Choisissez d’abord la destination');
     if (!s || !e || e < s) return toast('Choisissez les dates d’arrivée et de départ');
     setBusy(true);
-    const id = await createTrip({ name: name || `Voyage à ${city.name}`, city, startDate: s, endDate: e, lodging: lodging || null }, memberId);
+    const id = await createTrip({ name: name || `Voyage à ${city.name}`, city, startDate: s, endDate: e, lodging: lodging ? { ...lodging, verified: !!lodging.googleId } : null }, memberId);
     setBusy(false);
     setCreating(false);
     choose(id);

@@ -3,6 +3,7 @@
 //  - Overpass (OpenStreetMap)  : lieux par catégorie autour d'un point
 //  - Wikidata / Wikipédia      : photo et histoire des lieux
 import { categoryById } from '../data/categories.js';
+import { hasGoogle, searchGooglePlaces } from './google.js';
 import { currencyForCountry } from './currency.js';
 
 // Requêtes « simples » (sans en-têtes personnalisés) pour rester compatibles CORS.
@@ -29,19 +30,30 @@ export async function searchCities(q) {
 }
 
 export async function searchAddress(q, near) {
-  let url = `https://nominatim.openstreetmap.org/search?format=jsonv2&accept-language=fr&limit=6&q=${encodeURIComponent(q)}`;
-  if (near) {
-    const d = 0.3;
-    url += `&viewbox=${near.lon - d},${near.lat + d},${near.lon + d},${near.lat - d}`;
+  // 1) Google (si clé) : bien plus fiable pour les hôtels et campings, limité autour de la ville.
+  if (hasGoogle() && near) {
+    try {
+      const list = await searchGooglePlaces(q, near);
+      if (list.length) return list;
+    } catch {
+      // on passe à OpenStreetMap
+    }
   }
-  const res = await fetch(url, { headers: HEADERS });
-  const data = await res.json();
-  return data.map((r) => ({
+  // 2) OpenStreetMap, strictement autour de la ville (évite les homonymes à l'autre bout du pays).
+  const base = `https://nominatim.openstreetmap.org/search?format=jsonv2&accept-language=fr&limit=6&q=${encodeURIComponent(q)}`;
+  const get = async (url) => (await (await fetch(url, { headers: HEADERS })).json()).map((r) => ({
     name: r.name || r.display_name.split(',')[0],
     address: r.display_name,
     lat: Number(r.lat),
     lon: Number(r.lon),
   }));
+  if (!near) return get(base);
+  const d = 0.35;
+  const box = `&viewbox=${near.lon - d},${near.lat + d},${near.lon + d},${near.lat - d}`;
+  let list = await get(`${base}${box}&bounded=1`);
+  if (!list.length) list = await get(`${base}${box}`);
+  const dist = (r) => (r.lat - near.lat) ** 2 + ((r.lon - near.lon) * Math.cos((near.lat * Math.PI) / 180)) ** 2;
+  return list.sort((a, b) => dist(a) - dist(b));
 }
 
 const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];

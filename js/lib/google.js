@@ -107,7 +107,7 @@ async function findId(place, city) {
 }
 
 const DETAIL_FIELDS = [
-  'id', 'displayName', 'rating', 'userRatingCount', 'reviews', 'photos', 'editorialSummary', 'regularOpeningHours',
+  'id', 'displayName', 'location', 'rating', 'userRatingCount', 'reviews', 'photos', 'editorialSummary', 'regularOpeningHours',
   'currentOpeningHours', 'nationalPhoneNumber', 'internationalPhoneNumber', 'websiteUri', 'priceLevel', 'goodForChildren',
   'restroom', 'menuForChildren', 'accessibilityOptions', 'googleMapsUri', 'formattedAddress', 'primaryTypeDisplayName',
 ].join(',');
@@ -131,6 +131,18 @@ export async function placeDetails(place, city) {
     // stockage plein : tant pis pour le cache
   }
   return d;
+}
+
+// Recherche d'une adresse / d'un hôtel autour d'une ville (choix de l'hébergement).
+export async function searchGooglePlaces(q, near) {
+  const d = await call('places:searchText', {
+    method: 'POST',
+    body: { textQuery: q, maxResultCount: 6, languageCode: 'fr', locationBias: { circle: { center: { latitude: near.lat, longitude: near.lon }, radius: 30000 } } },
+    fields: 'places.id,places.displayName,places.formattedAddress,places.location',
+  });
+  return (d.places || [])
+    .filter((g) => g.location)
+    .map((g) => ({ googleId: g.id, name: g.displayName?.text || q, address: g.formattedAddress || '', lat: g.location.latitude, lon: g.location.longitude }));
 }
 
 export const PRICE = { PRICE_LEVEL_FREE: 'Gratuit', PRICE_LEVEL_INEXPENSIVE: '€', PRICE_LEVEL_MODERATE: '€€', PRICE_LEVEL_EXPENSIVE: '€€€', PRICE_LEVEL_VERY_EXPENSIVE: '€€€€' };

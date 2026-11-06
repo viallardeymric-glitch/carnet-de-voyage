@@ -206,7 +206,7 @@ export default function PlaceView() {
     <${Subtitle}>Y aller</${Subtitle}>
     <${Card}>
       <div class="chips mb">${MODES.map((m) => html`<${Chip} label=${m.label} icon=${m.icon} active=${mode === m.id} onClick=${() => setMode(m.id)} />`)}</div>
-      ${fromMe != null ? html`<div class="muted small">Depuis ma position : ${formatDistance(fromMe)}${mode === 'walk' ? ` · ≈ ${familyWalkMinutes(fromMe)} min au rythme de la famille` : ''}</div>` : null}
+      ${fromMe != null ? html`<div class="muted small">Depuis ma position : ${formatDistance(fromMe)}${mode === 'walk' && fromMe < 8000 ? ` · ≈ ${familyWalkMinutes(fromMe)} min au rythme de la famille` : ''}</div>` : null}
       ${fromHotel != null && !place.isLodging ? html`<div class="muted small">Depuis l'hôtel : ${formatDistance(fromHotel)}</div>` : null}
       <${Button} title="Y aller" icon="diamond-turn-right" variant="accent" onClick=${() => openDirections(place, mode)} style="margin-top:10px" />
       ${mode === 'transit' ? html`<div class="muted xs">Lignes, correspondances et arrêts sont donnés en direct par Plans, Google Maps ou Citymapper.</div>` : null}
