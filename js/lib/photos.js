@@ -153,6 +153,8 @@ export function photoKey(place) {
 }
 
 export function cachedPhoto(place, width = 240) {
+  const gk = place.gphoto && getGoogleKey();
+  if (gk) return `https://places.googleapis.com/v1/${place.gphoto}/media?maxWidthPx=${width * 2}&key=${encodeURIComponent(gk)}`;
   const hit = ls.get(`photo:${width}:${photoKey(place)}`);
   if (!hit) return undefined;
   if (!hit.url && Date.now() - hit.at > WEEK) return undefined; // on retentera plus tard

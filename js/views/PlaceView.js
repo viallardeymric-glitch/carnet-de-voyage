@@ -6,6 +6,7 @@ import { getPosition } from '../core/location.js';
 import { categoryById } from '../data/categories.js';
 import { fetchWikiSummary } from '../lib/places.js';
 import { findPhoto } from '../lib/photos.js';
+import { placeDetails, photoUrl, PRICE } from '../lib/google.js';
 import { isOpenNow, loadOpeningHours } from '../lib/openNow.js';
 import { distanceMeters, formatDistance, familyWalkMinutes } from '../lib/geo.js';
 import { MODES, openDirections, reviewsUrl, tripadvisorUrl } from '../lib/routing.js';
@@ -20,6 +21,9 @@ export default function PlaceView() {
   const initial = navState.place;
   const [wiki, setWiki] = useState(null);
   const [photo, setPhoto] = useState(null);
+  const [g, setG] = useState(null);
+  const [gBusy, setGBusy] = useState(false);
+  const [openReview, setOpenReview] = useState(-1);
   const [me, setMe] = useState(null);
   const [mode, setMode] = useState('walk');
   const [ohReady, setOhReady] = useState(false);
@@ -30,6 +34,12 @@ export default function PlaceView() {
   useEffect(() => {
     if (!place) return;
     setPhoto(null);
+    setG(null);
+    setGBusy(true);
+    placeDetails(place, trip?.city?.name)
+      .then(setG)
+      .catch((e) => console.warn('google', e.message))
+      .finally(() => setGBusy(false));
     fetchWikiSummary(place.tags).then((w) => {
       setWiki(w);
       if (!w?.image) findPhoto(place, { city: trip?.city?.name, width: 800 }).then(setPhoto);
@@ -63,37 +73,104 @@ export default function PlaceView() {
     ${link ? html`<${Icon} name="chevron-right" cls="muted small" />` : null}
   </a>`;
 
-  return html`<div class="page">
-    ${wiki?.image || photo ? html`<img src=${wiki?.image || photo} class="photo" style="height:210px" alt="" />` : null}
-    <h2 class="title">${place.name}</h2>
-    <div class="chips wrap mb">
-      <${Chip} label=${cat.label} icon=${cat.icon} active color=${cat.color} />
-      ${open != null ? html`<${Chip} label=${open ? 'Ouvert' : 'Fermé'} icon="clock" active color=${open ? 'var(--success)' : 'var(--danger)'} />` : null}
-      ${place.day ? html`<${Chip} label=${`Jour ${place.day}`} icon="calendar-days" active color="var(--navy)" />` : null}
-      ${place.addedBy && members[place.addedBy] ? html`<${Chip} label=${`Ajouté par ${members[place.addedBy].name}`} />` : null}
+  const photos = (g?.photos || []).slice(0, 8).map((p) => photoUrl(p.name, 900));
+  if (!photos.length && (wiki?.image || photo)) photos.push(wiki?.image || photo);
+  const rating = g?.rating || place.rating;
+  const ratings = g?.userRatingCount || place.ratings;
+  const price = PRICE[g?.priceLevel || place.price];
+  const openG = g?.currentOpeningHours?.openNow ?? place.openNow;
+  const isOpen = openG ?? open;
+  const acc = g?.accessibilityOptions || {};
+  const perks = [
+    g?.goodForChildren && ['child-reaching', 'Adapté aux enfants'],
+    g?.menuForChildren && ['ice-cream', 'Menu enfant'],
+    g?.restroom && ['restroom', 'Toilettes'],
+    (acc.wheelchairAccessibleEntrance || tags.wheelchair === 'yes') && ['baby-carriage', 'Accès poussette'],
+    tags.fee === 'no' && ['ticket', 'Entrée gratuite'],
+  ].filter(Boolean);
+  const todayIdx = (new Date().getDay() + 6) % 7; // Google : lundi = 0
+  const hours = g?.regularOpeningHours?.weekdayDescriptions;
+  const reviews = g?.reviews || [];
+
+  return html`<div class="page place">
+    ${photos.length
+      ? html`<div class="gallery-wrap">
+          <div class="gallery">${photos.map((u) => html`<img src=${u} alt="" loading="lazy" />`)}</div>
+          ${photos.length > 1 ? html`<span class="gallery-count"><${Icon} name="images" /> ${photos.length}</span>` : null}
+        </div>`
+      : html`<div class="gallery gallery-empty" style=${`--c:${cat.color}`}><${Icon} name=${place.isLodging ? 'bed' : cat.icon} /></div>`}
+
+    <div class="place-head">
+      <div class="muted xs upper">${place.isLodging ? 'Notre hébergement' : g?.primaryTypeDisplayName?.text || place.kind || cat.label}</div>
+      <h2 class="title" style="margin:2px 0 6px">${place.name}</h2>
+      ${rating
+        ? html`<div class="rate-line big">
+            <span class="stars" style=${`--r:${rating}`}></span><b>${rating.toFixed(1)}</b>
+            <span class="muted small">${ratings ? `${ratings.toLocaleString('fr-FR')} avis` : ''}</span>
+            ${price ? html`<span class="muted small">· ${price}</span>` : null}
+          </div>`
+        : gBusy
+          ? html`<div class="skeleton" style="width:60%"></div>`
+          : null}
+      <div class="chips wrap" style="margin-top:8px">
+        ${isOpen != null ? html`<span class=${`open-tag ${isOpen ? 'on' : ''}`}>${isOpen ? 'Ouvert maintenant' : 'Fermé'}</span>` : null}
+        ${place.day ? html`<${Chip} label=${`Jour ${place.day}`} icon="calendar-days" active color="var(--navy)" />` : null}
+        ${place.addedBy && members[place.addedBy] ? html`<${Chip} label=${`Ajouté par ${members[place.addedBy].name}`} />` : null}
+      </div>
     </div>
 
-    <div class="row">
-      <${Button} cls="grow" variant=${place.favorite ? 'danger' : 'ghost'} icon="heart" title="J'adore !" onClick=${() => update({ favorite: !place.favorite })} />
-      <${Button} cls="grow" icon="calendar-plus" title=${isSaved ? 'Planifier' : 'Ajouter'} onClick=${plan} />
-    </div>
-    ${isSaved
-      ? html`<${Button}
-          variant=${place.status === 'visited' ? 'accent' : 'ghost'}
-          icon=${place.status === 'visited' ? 'circle-check' : 'circle'}
-          title=${place.status === 'visited' ? 'Visité ✓' : 'Marquer comme visité'}
-          onClick=${() => update({ status: place.status === 'visited' ? 'todo' : 'visited' })}
-        />`
-      : null}
+    ${perks.length ? html`<div class="perks">${perks.map(([i, t]) => html`<div class="perk"><${Icon} name=${i} /><span>${t}</span></div>`)}</div>` : null}
+
+    ${g?.editorialSummary?.text ? html`<${Card}><div class="lead">${g.editorialSummary.text}</div></${Card}>` : null}
+
+    ${place.isLodging
+      ? null
+      : html`<div class="actions3">
+          <button class=${`act ${place.favorite ? 'on' : ''}`} onClick=${() => update({ favorite: !place.favorite })}><${Icon} name="heart" /><span>J'adore</span></button>
+          <button class="act" onClick=${plan}><${Icon} name="calendar-plus" /><span>${isSaved ? 'Planifier' : 'Ajouter'}</span></button>
+          ${isSaved
+            ? html`<button class=${`act ${place.status === 'visited' ? 'on ok' : ''}`} onClick=${() => update({ status: place.status === 'visited' ? 'todo' : 'visited' })}>
+                <${Icon} name="circle-check" /><span>${place.status === 'visited' ? 'Visité' : 'Visité ?'}</span>
+              </button>`
+            : html`<button class="act" onClick=${() => openDirections(place, mode)}><${Icon} name="diamond-turn-right" /><span>Y aller</span></button>`}
+        </div>`}
 
     <${Subtitle}>Y aller</${Subtitle}>
     <${Card}>
       <div class="chips mb">${MODES.map((m) => html`<${Chip} label=${m.label} icon=${m.icon} active=${mode === m.id} onClick=${() => setMode(m.id)} />`)}</div>
       ${fromMe != null ? html`<div class="muted small">Depuis ma position : ${formatDistance(fromMe)}${mode === 'walk' ? ` · ≈ ${familyWalkMinutes(fromMe)} min au rythme de la petite` : ''}</div>` : null}
-      ${fromHotel != null ? html`<div class="muted small">Depuis l'hôtel : ${formatDistance(fromHotel)}</div>` : null}
+      ${fromHotel != null && !place.isLodging ? html`<div class="muted small">Depuis l'hôtel : ${formatDistance(fromHotel)}</div>` : null}
       <${Button} title="Y aller" icon="diamond-turn-right" variant="accent" onClick=${() => openDirections(place, mode)} style="margin-top:10px" />
       ${mode === 'transit' ? html`<div class="muted xs">Lignes, correspondances et arrêts sont donnés en direct par Plans, Google Maps ou Citymapper.</div>` : null}
     </${Card}>
+
+    ${reviews.length
+      ? html`<div class="row between"><${Subtitle}>Avis</${Subtitle}>${g?.googleMapsUri ? html`<a class="small bold" href=${g.googleMapsUri} target="_blank">Tous les avis ›</a>` : null}</div>
+          <div class="reviews">
+            ${reviews.map(
+              (r, i) => html`<div class="review" onClick=${() => setOpenReview(openReview === i ? -1 : i)}>
+                <div class="row" style="gap:8px">
+                  ${r.authorAttribution?.photoUri ? html`<img class="avatar" src=${r.authorAttribution.photoUri} alt="" referrerpolicy="no-referrer" />` : html`<span class="avatar"><${Icon} name="user" /></span>`}
+                  <div class="grow" style="min-width:0">
+                    <div class="bold small ellipsis">${r.authorAttribution?.displayName || 'Voyageur'}</div>
+                    <div class="row" style="gap:6px"><span class="stars sm" style=${`--r:${r.rating || 0}`}></span><span class="muted xs">${r.relativePublishTimeDescription || ''}</span></div>
+                  </div>
+                </div>
+                <div class=${`review-text ${openReview === i ? 'open' : ''}`}>${r.text?.text || r.originalText?.text || ''}</div>
+              </div>`
+            )}
+          </div>`
+      : null}
+
+    ${hours
+      ? html`<${Subtitle}>Horaires</${Subtitle}>
+          <${Card} style="padding:6px 13px">
+            ${hours.map((h, i) => {
+              const [d, ...rest] = h.split(': ');
+              return html`<div class=${`hour ${i === todayIdx ? 'today' : ''}`}><span>${d}</span><span>${rest.join(': ')}</span></div>`;
+            })}
+          </${Card}>`
+      : null}
 
     ${wiki?.text
       ? html`<${Subtitle}>Histoire</${Subtitle}>
@@ -105,14 +182,14 @@ export default function PlaceView() {
 
     <${Subtitle}>Infos pratiques</${Subtitle}>
     <${Card} style="padding:4px 14px">
-      ${tags.street ? info('location-dot', tags.street) : null}
-      ${tags.opening_hours ? info('clock', tags.opening_hours) : null}
+      ${g?.formattedAddress || tags.street || place.address ? info('location-dot', g?.formattedAddress || tags.street || place.address) : null}
+      ${!hours && tags.opening_hours ? info('clock', tags.opening_hours) : null}
+      ${g?.nationalPhoneNumber ? info('phone', g.nationalPhoneNumber, `tel:${(g.internationalPhoneNumber || g.nationalPhoneNumber).replace(/\s/g, '')}`) : null}
+      ${g?.websiteUri && !tags.website ? info('globe', 'Site officiel', g.websiteUri) : null}
       ${tags.cuisine ? info('utensils', `Cuisine : ${tags.cuisine.replace(/;/g, ', ')}`) : null}
-      ${tags.fee === 'no' ? info('tag', 'Entrée gratuite') : null}
-      ${tags.wheelchair === 'yes' ? info('baby-carriage', 'Accessible poussette / fauteuil') : null}
       ${tags.website ? info('globe', 'Site officiel', tags.website) : null}
       ${tags.phone ? info('phone', tags.phone, `tel:${tags.phone.replace(/\s/g, '')}`) : null}
-      ${info('star', 'Avis Google', reviewsUrl(place))}
+      ${info('star', 'Voir sur Google Maps', g?.googleMapsUri || reviewsUrl(place))}
       ${info('comments', 'Avis Tripadvisor', tripadvisorUrl(place, trip?.city?.name))}
     </${Card}>
 

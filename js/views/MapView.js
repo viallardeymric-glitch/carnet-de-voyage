@@ -9,6 +9,7 @@ import { useLiveLocation } from '../core/location.js';
 import { otherMember } from '../core/config.js';
 import { CATEGORIES, categoryById } from '../data/categories.js';
 import { fetchPlaces } from '../lib/places.js';
+import { nearbyGoogle, hasGoogle } from '../lib/google.js';
 import { isOpenNow, loadOpeningHours } from '../lib/openNow.js';
 import { distanceMeters, formatDistance, familyWalkMinutes } from '../lib/geo.js';
 import { tripDays, formatDay, dayColor } from '../lib/dates.js';
@@ -164,16 +165,42 @@ export default function MapView() {
     if (openOnly && !ohReady) loadOpeningHours().then(() => setOhReady(true));
   }, [openOnly]);
 
+  // Recherche : Google (rapide, les plus populaires, avec notes) et OpenStreetMap en parallèle.
+  const searchId = useRef(0);
   const search = async (catId) => {
     if (!map.current || !catId) return;
     const c = map.current.getCenter();
+    const center = { lat: c.lat, lon: c.lng };
+    const radius = catId === 'sante' ? 3000 : 1800;
+    const id = ++searchId.current;
     setLoading(true);
-    try {
-      setResults(await fetchPlaces(catId, { lat: c.lat, lon: c.lng }, catId === 'sante' ? 3000 : 1500));
-    } catch {
-      toast('Recherche impossible (réseau). Réessayez.');
-    }
+    let google = [];
+    const merge = (osm) => {
+      const near = (a, b) => Math.abs(a.lat - b.lat) < 0.0004 && Math.abs(a.lon - b.lon) < 0.0006;
+      return [...google, ...osm.filter((o) => !google.some((g) => near(g, o) && (g.name.toLowerCase().includes(o.name.toLowerCase().slice(0, 5)) || near(g, o))))];
+    };
+    const jobs = [];
+    if (hasGoogle())
+      jobs.push(
+        nearbyGoogle(catId, center, radius)
+          .then((list) => {
+            google = list;
+            if (id === searchId.current) setResults((prev) => merge(prev.filter((r) => !r.googleId)));
+          })
+          .catch((e) => console.warn('google', e.message))
+      );
+    jobs.push(
+      fetchPlaces(catId, center, radius, 150)
+        .then((osm) => id === searchId.current && setResults(merge(osm)))
+        .catch(() => {})
+    );
+    await Promise.all(jobs);
+    if (id !== searchId.current) return;
     setLoading(false);
+    setResults((r) => {
+      if (!r.length) toast('Rien trouvé ici (ou pas de réseau). Déplacez la carte puis « Chercher ici ».');
+      return r;
+    });
   };
 
   const pickCategory = (id) => {
@@ -199,7 +226,10 @@ export default function MapView() {
   );
   const visibleResults = useMemo(() => {
     const ids = new Set(saved.map((s) => s.osmId).filter(Boolean));
-    return results.filter((r) => !ids.has(r.osmId)).filter((r) => !openOnly || isOpenNow(r, cc) === true);
+    const gids = new Set(saved.map((s) => s.googleId).filter(Boolean));
+    return results
+      .filter((r) => !(r.osmId && ids.has(r.osmId)) && !(r.googleId && gids.has(r.googleId)))
+      .filter((r) => !openOnly || r.openNow === true || (r.openNow == null && isOpenNow(r, cc) === true));
   }, [results, saved, openOnly, ohReady]);
 
   // Parcours de chaque jour : hôtel → lieux dans l'ordre → retour.
@@ -218,47 +248,74 @@ export default function MapView() {
     src.setData({ type: 'FeatureCollection', features });
   }, [plan, day, ready, trip?.lodging]);
 
-  // Marqueurs (recréés à chaque changement : quelques dizaines au plus).
-  useEffect(() => {
+  // Marqueurs, par groupe : un groupe n'est redessiné que si ses propres données changent
+  // (la position GPS qui bouge ne redessine plus tous les lieux).
+  const groups = useRef({});
+  const draw = (name, items) => {
     const m = map.current;
-    if (!ready || !m) return;
-    markers.current.forEach((k) => k.remove());
-    markers.current = [];
-    const add = (node, lon, lat, onTap) => {
+    (groups.current[name] || []).forEach((k) => k.remove());
+    groups.current[name] = [];
+    if (!m) return;
+    for (const [node, lon, lat, onTap] of items) {
       if (onTap)
         node.addEventListener('click', (e) => {
           e.stopPropagation();
           onTap();
         });
-      markers.current.push(new maplibregl.Marker({ element: node, anchor: 'center' }).setLngLat([lon, lat]).addTo(m));
-    };
-
-    visibleResults.forEach((p) => {
-      const c = categoryById(p.category);
-      add(el('mk mk-dot', `<i class="fa-solid fa-${c.icon}"></i>`, `--c:${c.color}`), p.lon, p.lat, () => setSel(p));
-    });
-    visibleSaved.forEach((p) => {
-      if (p.day) {
-        const n = (plan[p.day] || []).indexOf(p) + 1;
-        add(el(`mk mk-num ${p.status === 'visited' ? 'done' : ''}`, `<span>${n || '•'}</span>`, `--c:${dayColor(p.day)}`), p.lon, p.lat, () => setSel(p));
-      } else {
-        const c = categoryById(p.category);
-        add(el('mk mk-pin', `<i class="fa-solid fa-${p.favorite ? 'heart' : c.icon}"></i>`, `--c:${p.favorite ? 'var(--pink)' : c.color}`), p.lon, p.lat, () => setSel(p));
-      }
-    });
-    if (trip?.lodging) {
-      const h = trip.lodging;
-      add(el('mk mk-home', `<i class="fa-solid fa-bed"></i><b>Hôtel</b>`), h.lon, h.lat, () => setSel({ ...h, name: h.name, category: 'monuments', isLodging: true }));
+      groups.current[name].push(new maplibregl.Marker({ element: node, anchor: 'center' }).setLngLat([lon, lat]).addTo(m));
     }
+  };
+  useEffect(() => () => Object.values(groups.current).flat().forEach((k) => k.remove()), []);
+
+  useEffect(() => {
+    if (!ready) return;
+    draw(
+      'results',
+      visibleResults.map((p) => {
+        const c = categoryById(p.category);
+        const node = p.rating
+          ? el('mk mk-rate', `<i class="fa-solid fa-${c.icon}"></i><b>${p.rating.toFixed(1)}</b>`, `--c:${c.color}`)
+          : el('mk mk-dot', `<i class="fa-solid fa-${c.icon}"></i>`, `--c:${c.color}`);
+        return [node, p.lon, p.lat, () => setSel(p)];
+      })
+    );
+  }, [ready, visibleResults]);
+
+  useEffect(() => {
+    if (!ready) return;
+    draw(
+      'saved',
+      visibleSaved.map((p) => {
+        if (p.day) {
+          const n = (plan[p.day] || []).indexOf(p) + 1;
+          return [el(`mk mk-num ${p.status === 'visited' ? 'done' : ''}`, `<span>${n || '•'}</span>`, `--c:${dayColor(p.day)}`), p.lon, p.lat, () => setSel(p)];
+        }
+        const c = categoryById(p.category);
+        return [el('mk mk-pin', `<i class="fa-solid fa-${p.favorite ? 'heart' : c.icon}"></i>`, `--c:${p.favorite ? 'var(--pink)' : c.color}`), p.lon, p.lat, () => setSel(p)];
+      })
+    );
+  }, [ready, visibleSaved, plan]);
+
+  const lodgingPlace = trip?.lodging ? { ...trip.lodging, category: 'monuments', isLodging: true } : null;
+  useEffect(() => {
+    if (!ready) return;
+    const h = lodgingPlace;
+    draw('lodging', h ? [[el('mk mk-home', `<i class="fa-solid fa-bed"></i><b>Hôtel</b>`), h.lon, h.lat, () => setSel(h)]] : []);
+  }, [ready, trip?.lodging?.lat, trip?.lodging?.name]);
+
+  useEffect(() => {
+    if (!ready) return;
     const people = [...(me && member ? [{ ...me, id: member.id, self: true }] : []), ...others];
+    const items = [];
     people.forEach((o) => {
       const mm = members[o.id];
       if (!mm) return;
       const node = el('mk-person', `<span class="badge" style="width:36px;height:36px;background:${mm.color};font-size:15px">${esc(mm.id)}</span>`);
-      node.title = o.self ? `${mm.name} (moi)` : `${mm.name} · ${ago(o.updatedAtMs)}`;
-      add(node, o.lon, o.lat, () => toast(node.title));
+      const label = o.self ? `${mm.name} (moi)` : `${mm.name} · ${ago(o.updatedAtMs)}`;
+      items.push([node, o.lon, o.lat, () => toast(label)]);
     });
-  }, [ready, visibleSaved, visibleResults, plan, me, others, trip?.lodging]);
+    draw('people', items);
+  }, [ready, me?.lat, me?.lon, others]);
 
   // Choix d'un jour : on cadre son parcours.
   const pickDay = (d) => {
@@ -341,13 +398,14 @@ export default function MapView() {
             <${Thumb} place=${sel} city=${trip?.city?.name} size=${78} />
             <div class="grow" style="min-width:0">
               <div class="peek-title">${sel.name}</div>
+              ${sel.rating ? html`<div class="rate-line"><span class="stars" style=${`--r:${sel.rating}`}></span><b>${sel.rating.toFixed(1)}</b><span class="muted xs">(${sel.ratings.toLocaleString('fr-FR')} avis)</span>${sel.openNow != null ? html`<span class=${`open-tag ${sel.openNow ? 'on' : ''}`}>${sel.openNow ? 'Ouvert' : 'Fermé'}</span>` : null}</div>` : null}
               <div class="muted xs">
-                ${sel.isLodging ? 'Notre hébergement' : categoryById(sel.category).label}
+                ${sel.isLodging ? 'Notre hébergement' : sel.kind || categoryById(sel.category).label}
                 ${sel.day ? html` · <b style=${`color:${dayColor(sel.day)}`}>Jour ${sel.day}</b>` : null}
                 ${selFromHotel != null ? ` · ${formatDistance(selFromHotel)} de l'hôtel` : ''}
               </div>
               <div class="row" style="margin-top:8px;gap:6px">
-                ${!sel.isLodging ? html`<button class="pill" onClick=${() => go('lieu', { place: sel })}><${Icon} name="circle-info" /> Fiche</button>` : null}
+                <button class="pill" onClick=${() => go('lieu', { place: sel })}><${Icon} name="circle-info" /> Fiche</button>
                 <button class="pill accent" onClick=${() => openDirections(sel, 'walk')}><${Icon} name="diamond-turn-right" /> Y aller</button>
                 ${!sel.isLodging && !selSaved
                   ? html`<button class="pill" onClick=${() => (savePlace(tripId, sel, {}, memberId), toast('Ajouté à la boîte à idées'))}><${Icon} name="plus" /> Garder</button>`
