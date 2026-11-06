@@ -379,3 +379,6 @@ html[data-dark] .card .input { background: #24272D; }
 .hero-head::before, .hero-head::after { opacity: .7; }
 .hh-trip, .hh-back { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(255,255,255,.2); }
 .tabbar { padding-bottom: max(var(--safe-bottom), 10px); }
+.faceid { margin-top: 40px; width: 170px; height: 170px; border-radius: 44px; border: 0; cursor: pointer; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  background: linear-gradient(135deg, var(--navy), var(--navy-2)); box-shadow: 0 12px 30px color-mix(in srgb, var(--navy) 35%, transparent); font: inherit; font-weight: 700; font-size: 13px; padding: 14px; }
+.faceid i { font-size: 54px; }

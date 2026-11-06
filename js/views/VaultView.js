@@ -5,7 +5,7 @@ import { listDocs, addFile, addBooking, removeDoc, openFile, useSharedVault, onV
 import { useApp } from '../core/app.js';
 import { ls } from '../core/config.js';
 import { pushKey } from '../core/sharedKeys.js';
-import { biometricsEnabled, verifyBiometrics, checkPin, pinLength } from '../core/lock.js';
+import { biometricsEnabled, verifyBiometrics, checkPin, pinLength, sessionUnlocked } from '../core/lock.js';
 import { parseBooking, KIND_LABELS } from '../lib/bookingParser.js';
 import PinPad from '../ui/PinPad.js';
 import { Card, Button, Chip, Icon, Subtitle, SafetyBox, Empty } from '../ui/components.js';
@@ -14,7 +14,7 @@ import { confirm, toast } from '../ui/dialogs.js';
 const KINDS = ['vol', 'train', 'hebergement', 'activite', 'autre'];
 
 export default function VaultView() {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(() => sessionUnlocked());
   const [pin, setPin] = useState('');
   const [docs, setDocs] = useState([]);
   const [viewer, setViewer] = useState(null);

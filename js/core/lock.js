@@ -102,3 +102,9 @@ export function watchAutoLock(onLock) {
   document.addEventListener('visibilitychange', handler);
   return () => document.removeEventListener('visibilitychange', handler);
 }
+
+// Session déverrouillée : une fois l'app ouverte (Face ID ou code), le coffre ne redemande rien
+// tant que l'app ne s'est pas reverrouillée (plus d'une minute en arrière-plan).
+let sessionOpen = false;
+export const markSession = (v) => (sessionOpen = v);
+export const sessionUnlocked = () => sessionOpen;

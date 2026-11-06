@@ -1,4 +1,4 @@
-import { html, useState } from '../../vendor/preact.js';
+import { html, useEffect, useState } from '../../vendor/preact.js';
 import { useApp } from '../core/app.js';
 import { checkPin, pinLength, biometricsEnabled, verifyBiometrics, pinThrottle, registerFail, clearFails, resetPin } from '../core/lock.js';
 import PinPad from '../ui/PinPad.js';
@@ -11,6 +11,7 @@ export default function LockView() {
   const [error, setError] = useState('');
   const len = pinLength();
   const bio = biometricsEnabled();
+  const [showPad, setShowPad] = useState(!bio);
 
   const onChange = async (v) => {
     setError('');
@@ -35,8 +36,16 @@ export default function LockView() {
     if (await verifyBiometrics()) {
       clearFails();
       unlock();
-    } else setError('Face ID non reconnu, utilisez le code.');
+    } else {
+      setError('Face ID non reconnu : réessayez ou utilisez le code.');
+      setShowPad(true);
+    }
   };
+  // Face ID se lance tout seul à l'ouverture (si l'iPhone l'autorise sans toucher l'écran).
+  useEffect(() => {
+    if (!bio) return;
+    verifyBiometrics().then((ok) => ok && (clearFails(), unlock()));
+  }, []);
 
   const forgot = async () => {
     const msg =
@@ -53,10 +62,12 @@ export default function LockView() {
   return html`<div class="lock">
     ${member ? html`<${MemberBadge} member=${member} size=${56} />` : null}
     <h1 class="title" style="margin-top:12px">Bonjour ${member?.name}</h1>
-    <div class="muted">Saisissez votre code${bio ? ' ou utilisez Face ID' : ''}</div>
     ${error ? html`<div class="error">${error}</div>` : null}
-    ${bio ? html`<${Button} title="Déverrouiller avec Face ID" icon="face-smile" variant="accent" small onClick=${faceId} style="margin-top:14px" />` : null}
-    <${PinPad} value=${value} length=${len} onChange=${onChange} onBiometrics=${bio ? faceId : null} />
-    <button class="btn ghost sm" style="margin-top:18px" onClick=${forgot}>Code oublié ?</button>
+    ${bio && !showPad
+      ? html`<button class="faceid" onClick=${faceId}><i class="fa-solid fa-face-smile"></i><span>Toucher pour ouvrir avec Face ID</span></button>
+          <button class="btn ghost sm" style="margin-top:24px" onClick=${() => setShowPad(true)}>Utiliser mon code</button>`
+      : html`<div class="muted">Saisissez votre code${bio ? ' ou utilisez Face ID' : ''}</div>
+          <${PinPad} value=${value} length=${len} onChange=${onChange} onBiometrics=${bio ? faceId : null} />
+          <button class="btn ghost sm" style="margin-top:18px" onClick=${forgot}>Code oublié ?</button>`}
   </div>`;
 }

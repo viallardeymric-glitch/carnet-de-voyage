@@ -4,7 +4,7 @@ import { cityPhoto } from './lib/photos.js';
 import { html, render, useState, useEffect, useMemo } from '../vendor/preact.js';
 import { initStore, auth, fb, useDoc } from './core/store.js';
 import { ls, getMembers, consumeInvite, watchAppearance } from './core/config.js';
-import { hasPin, watchAutoLock } from './core/lock.js';
+import { hasPin, watchAutoLock, markSession } from './core/lock.js';
 import { persistStorage } from './core/vault.js';
 import { AppCtx, TABS, currentRoute, back, useApp } from './core/app.js';
 import { DialogHost, Icon, Spinner } from './ui/components.js';
@@ -59,7 +59,7 @@ function App({ mode }) {
     const onHash = () => setRoute(currentRoute());
     window.addEventListener('hashchange', onHash);
     persistStorage();
-    const stop = watchAutoLock(() => hasPin() && setLocked(true));
+    const stop = watchAutoLock(() => hasPin() && (markSession(false), setLocked(true)));
     let unsub = null;
     if (mode === 'firebase') unsub = fb.onAuthStateChanged(auth, (u) => setUser(u || null));
     return () => {
@@ -88,9 +88,10 @@ function App({ mode }) {
         setTripIdState(id);
       },
       path: (sub) => (tripId ? `trips/${tripId}/${sub}` : null),
-      lock: () => setLocked(true),
-      unlock: () => setLocked(false),
+      lock: () => (markSession(false), setLocked(true)),
+      unlock: () => (markSession(true), setLocked(false)),
       pinChanged: () => {
+        markSession(true);
         setPinOk(hasPin());
         setLocked(false);
       },
