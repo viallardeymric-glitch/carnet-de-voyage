@@ -150,19 +150,24 @@ export default function SettingsView() {
 
     <${Subtitle}>Photos Google (optionnel)</${Subtitle}>
     <${Card}>
-      <div class="muted small mb">${hasG
-        ? 'Une clé Google est enregistrée : les photos des lieux et des hôtels viennent d’abord de Google.'
-        : 'Sans clé, les photos viennent de Wikipédia. Avec une clé « Places API (New) » de Google Cloud, presque tous les lieux et hôtels ont une photo.'}</div>
-      <input class="input" type="password" placeholder="AIza…" value=${gkey} onInput=${(e) => setGkey(e.target.value)} autocomplete="off" />
-      <div class="row">
-        <${Button} cls="grow" small title="Enregistrer" disabled=${!gkey} onClick=${() => (setGoogleKey(gkey.trim()), pushKey('google', gkey.trim()), setGkey(''), setHasG(true), toast('Clé Google enregistrée'))} />
-        ${hasG ? html`<${Button} cls="grow" small variant="ghost" title="Supprimer" onClick=${() => (setGoogleKey(null), pushKey('google', null), setHasG(false))} />` : null}
+      <div class="row between mb">
+        <b>Google Places</b>
+        ${hasG ? html`<span class="ok-tag"><i class="fa-solid fa-circle-check"></i> Activée</span>` : html`<span class="muted xs">Photos, avis, horaires</span>`}
       </div>
+      <div class="muted small mb">${hasG
+        ? 'Les photos, avis et horaires des lieux et des hôtels viennent de Google. La clé est partagée avec l’autre téléphone.'
+        : 'Sans clé, les photos viennent de Wikipédia. Avec une clé « Places API (New) » de Google Cloud, presque tous les lieux et hôtels ont une photo.'}</div>
+      ${hasG
+        ? html`<${Button} small variant="ghost" title="Retirer la clé" onClick=${() => (setGoogleKey(null), pushKey('google', null), setHasG(false))} />`
+        : html`<div class="row">
+            <input class="input grow" style="margin:0" type="password" placeholder="AIza…" value=${gkey} onInput=${(e) => setGkey(e.target.value)} autocomplete="off" />
+            <${Button} small title="OK" disabled=${!gkey} onClick=${() => (setGoogleKey(gkey.trim()), pushKey('google', gkey.trim()), setGkey(''), setHasG(true), toast('Clé Google enregistrée'))} />
+          </div>`}
     </${Card}>
 
     <${SafetyBox} title="Installer sur l'écran d'accueil" icon="mobile-screen">
       <p>Dans Safari : bouton Partager <b>⬆︎</b> › « Sur l'écran d'accueil ». L'app s'ouvre alors en plein écran, avec son icône, même hors-ligne.</p>
     </${SafetyBox}>
-    <div class="muted xs center">Carnet de Voyage · version 3.6.2</div>
+    <div class="muted xs center">Carnet de Voyage · version 3.6.3</div>
   </div>`;
 }
