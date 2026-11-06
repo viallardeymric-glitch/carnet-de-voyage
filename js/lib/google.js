@@ -145,4 +145,31 @@ export async function searchGooglePlaces(q, near) {
     .map((g) => ({ googleId: g.id, name: g.displayName?.text || q, address: g.formattedAddress || '', lat: g.location.latitude, lon: g.location.longitude }));
 }
 
+// Hôpitaux et pharmacies les plus proches (classés par distance), avec téléphone. Gardés 1 jour.
+export async function healthGoogle(center) {
+  const key = `g:health:${center.lat.toFixed(3)},${center.lon.toFixed(3)}`;
+  const hit = ls.get(key);
+  if (hit && Date.now() - hit.at < DAY) return hit.list;
+  const fields = 'places.id,places.displayName,places.location,places.nationalPhoneNumber,places.internationalPhoneNumber,places.currentOpeningHours.openNow,places.shortFormattedAddress';
+  const one = async (type) => {
+    const d = await call('places:searchNearby', {
+      method: 'POST',
+      body: { includedTypes: [type], maxResultCount: 8, rankPreference: 'DISTANCE', languageCode: 'fr', locationRestriction: { circle: { center: { latitude: center.lat, longitude: center.lon }, radius: 15000 } } },
+      fields,
+    });
+    return (d.places || []).filter((g) => g.location).map((g) => ({
+      googleId: g.id,
+      name: g.displayName?.text || (type === 'hospital' ? 'Hôpital' : 'Pharmacie'),
+      lat: g.location.latitude,
+      lon: g.location.longitude,
+      isHospital: type === 'hospital',
+      openNow: g.currentOpeningHours?.openNow ?? null,
+      tags: { phone: g.internationalPhoneNumber || g.nationalPhoneNumber || '', opening_hours: '', emergency: '', street: g.shortFormattedAddress || '' },
+    }));
+  };
+  const list = [...(await one('hospital')), ...(await one('pharmacy'))];
+  ls.set(key, { at: Date.now(), list });
+  return list;
+}
+
 export const PRICE = { PRICE_LEVEL_FREE: 'Gratuit', PRICE_LEVEL_INEXPENSIVE: '€', PRICE_LEVEL_MODERATE: '€€', PRICE_LEVEL_EXPENSIVE: '€€€', PRICE_LEVEL_VERY_EXPENSIVE: '€€€€' };
