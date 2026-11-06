@@ -7,6 +7,7 @@ const ITEMS = [
   { to: 'checklist', icon: 'list-check', label: 'Check-list de bagages', sub: 'Partagée et synchronisée' },
   { to: 'urgences', icon: 'kit-medical', label: 'Urgences & santé', sub: 'Numéros, hôpitaux et pharmacies proches' },
   { to: 'journal', icon: 'book-open', label: 'Journal de bord', sub: 'Photos et souvenirs de chaque jour' },
+  { to: 'voyageurs', icon: 'people-group', label: 'Voyageurs', sub: 'Qui part : enfants, bébé, chien… tout s’adapte' },
   { to: 'voyages', icon: 'plane', label: 'Changer de voyage', sub: 'Créer ou choisir une destination' },
   { to: 'reglages', icon: 'gear', label: 'Réglages', sub: 'Profil, synchronisation, code PIN, Face ID' },
 ];

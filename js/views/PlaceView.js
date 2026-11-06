@@ -7,6 +7,7 @@ import { categoryById } from '../data/categories.js';
 import { fetchWikiSummary } from '../lib/places.js';
 import { findPhoto, findArticle, articleText } from '../lib/photos.js';
 import { VISITABLE, hasGuide, cachedGuide, writeGuide } from '../lib/guide.js';
+import { getParty } from '../lib/party.js';
 import { placeDetails, photoUrl, PRICE } from '../lib/google.js';
 import { isOpenNow, loadOpeningHours } from '../lib/openNow.js';
 import { distanceMeters, formatDistance, familyWalkMinutes } from '../lib/geo.js';
@@ -64,7 +65,7 @@ export default function PlaceView() {
     setArticle(null);
     setFullText(false);
     setGuideErr('');
-    setGuide(cachedGuide(place));
+    setGuide(cachedGuide(place, getParty(trip)));
     const visitable = VISITABLE.includes(place.category) && !place.isLodging;
     const articleJob = visitable
       ? findArticle(place, trip?.city?.name)
@@ -92,7 +93,7 @@ export default function PlaceView() {
     setGuideErr('');
     try {
       setGuide(
-        await writeGuide(place, { city: trip?.city?.name, wiki: article?.text || wiki?.text, summary: g?.editorialSummary?.text, kind: g?.primaryTypeDisplayName?.text }, force)
+        await writeGuide(place, { city: trip?.city?.name, wiki: article?.text || wiki?.text, summary: g?.editorialSummary?.text, kind: g?.primaryTypeDisplayName?.text, party: getParty(trip), month: trip?.startDate ? new Date(trip.startDate).toLocaleDateString('fr-FR', { month: 'long' }) : '' }, force)
       );
     } catch (e) {
       setGuideErr(e.message || 'Erreur');
@@ -205,7 +206,7 @@ export default function PlaceView() {
     <${Subtitle}>Y aller</${Subtitle}>
     <${Card}>
       <div class="chips mb">${MODES.map((m) => html`<${Chip} label=${m.label} icon=${m.icon} active=${mode === m.id} onClick=${() => setMode(m.id)} />`)}</div>
-      ${fromMe != null ? html`<div class="muted small">Depuis ma position : ${formatDistance(fromMe)}${mode === 'walk' ? ` · ≈ ${familyWalkMinutes(fromMe)} min au rythme de la petite` : ''}</div>` : null}
+      ${fromMe != null ? html`<div class="muted small">Depuis ma position : ${formatDistance(fromMe)}${mode === 'walk' ? ` · ≈ ${familyWalkMinutes(fromMe)} min au rythme de la famille` : ''}</div>` : null}
       ${fromHotel != null && !place.isLodging ? html`<div class="muted small">Depuis l'hôtel : ${formatDistance(fromHotel)}</div>` : null}
       <${Button} title="Y aller" icon="diamond-turn-right" variant="accent" onClick=${() => openDirections(place, mode)} style="margin-top:10px" />
       ${mode === 'transit' ? html`<div class="muted xs">Lignes, correspondances et arrêts sont donnés en direct par Plans, Google Maps ou Citymapper.</div>` : null}
@@ -262,7 +263,7 @@ export default function PlaceView() {
     </${Card}>
 
     ${place.category === 'sante'
-      ? html`<${SafetyBox}><p>Pour une urgence, appelez directement les secours (Plus › Urgences). Signalez la grossesse dès l'accueil.</p></${SafetyBox}>`
+      ? html`<${SafetyBox}><p>Pour une urgence, appelez directement les secours (Plus › Urgences). ${getParty(trip).some((t) => t.pregnant) ? " Signalez la grossesse dès l'accueil." : ''}</p></${SafetyBox}>`
       : null}
 
     ${isSaved

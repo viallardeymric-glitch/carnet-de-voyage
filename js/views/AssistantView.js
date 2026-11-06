@@ -4,7 +4,8 @@ import { useApp, go } from '../core/app.js';
 import { useCollection } from '../core/store.js';
 import { getPosition } from '../core/location.js';
 import { getWeather } from '../lib/weather.js';
-import { localSuggestions, askClaude, getApiKey, momentOfDay } from '../lib/assistant.js';
+import { localSuggestions, askClaude, getApiKey, momentOfDay, assistantSystem } from '../lib/assistant.js';
+import { getParty, describeParty } from '../lib/party.js';
 import { savePlace } from '../lib/trips.js';
 import { categoryById } from '../data/categories.js';
 import { formatDistance } from '../lib/geo.js';
@@ -50,7 +51,7 @@ export default function AssistantView() {
         lieuxProches: data?.places?.slice(0, 5).map((p) => `${p.name} (${formatDistance(p.distance)})`),
         boiteAIdees: places.filter((p) => !p.day).map((p) => p.name).slice(0, 15),
       };
-      setAnswer(await askClaude({ question: question || 'Que nous conseilles-tu de faire maintenant ?', context }));
+      setAnswer(await askClaude({ question: question || 'Que nous conseilles-tu de faire maintenant ?', context, system: assistantSystem(describeParty(getParty(trip))) }));
     } catch (e) {
       setAnswer(`⚠️ ${e.message}`);
     }

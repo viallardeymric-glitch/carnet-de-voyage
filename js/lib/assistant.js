@@ -19,7 +19,7 @@ export function momentOfDay(date = new Date()) {
 const MOMENT_TEXT = {
   matin: 'C\'est le matin, le meilleur moment pour la grande visite du jour.',
   dejeuner: 'C\'est l\'heure de manger : voici des adresses tout près.',
-  repos: 'Début d\'après-midi : place à une pause au calme pour Marie et la petite (sieste, hôtel ou parc tranquille).',
+  repos: 'Début d\'après-midi : place à une pause au calme (sieste, hôtel ou parc tranquille).',
   'fin-apres-midi': 'Fin d\'après-midi : une activité douce et proche, sans longue marche.',
   soir: 'Soirée : dîner simple près de l\'hôtel et retour tôt.',
 };
@@ -52,7 +52,7 @@ export async function localSuggestions({ position, weather, ideas }) {
 
   const tips = [MOMENT_TEXT[moment]];
   if (weather?.rainy) tips.push('Il pleut : privilégiez les lieux couverts (filtre « Abri pluie »).');
-  if (weather?.temp != null && weather.temp < 5) tips.push(`Il fait ${weather.temp}°C : bonnet et gants pour la petite, pauses au chaud.`);
+  if (weather?.temp != null && weather.temp < 5) tips.push(`Il fait ${weather.temp}°C : bonnet et gants pour tout le monde, pauses au chaud.`);
   if (ideasNear.length) tips.push('Des idées de votre boîte à idées sont à moins de 30 min à pied.');
 
   return {
@@ -85,10 +85,11 @@ export function setAiKey(provider, key) {
 export const getApiKey = () => Object.values(getAiKeys()).find(Boolean) || null;
 export const setApiKey = (k) => setAiKey('claude', k);
 
-const SYSTEM =
-  'Tu es un conseiller voyage chaleureux et rigoureux pour une famille : papa (Eymric), maman (Marie, enceinte, ' +
-  "rythme doux, pas d'effort intense, accès médical rapide) et leur fille de 5 ans. " +
-  "Réponds en français, en 5 à 8 lignes maximum, avec des suggestions concrètes, proches et adaptées à l'heure et à la météo.";
+const SYSTEM_BASE =
+  'Tu es un conseiller voyage chaleureux et rigoureux. ' +
+  "Réponds en français, en 5 à 8 lignes maximum, avec des suggestions concrètes, proches et adaptées à l'heure, à la météo et au groupe.";
+const SYSTEM = SYSTEM_BASE;
+export const assistantSystem = (partyText) => `${SYSTEM_BASE} ${partyText || ''}`;
 
 async function readError(res) {
   const d = await res.json().catch(() => ({}));

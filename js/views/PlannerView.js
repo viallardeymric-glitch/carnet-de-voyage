@@ -103,7 +103,7 @@ export default function PlannerView() {
           </div>
           ${list.length && start ? html`<div class="muted small mb">Boucle depuis l'hôtel : ${formatDistance(total)} à vol d'oiseau (≈ ${familyWalkMinutes(total)} min de marche).</div>` : null}
           ${list.length
-            ? html`<${SafetyBox} title="Rythme doux" icon="mug-hot"><p>Gardez une pause repos de 14 h à 16 h (hôtel ou café calme) pour Marie et la petite. 2 à 3 lieux par jour suffisent.</p></${SafetyBox}>`
+            ? html`<${SafetyBox} title="Rythme doux" icon="mug-hot"><p>Gardez une pause repos de 14 h à 16 h (hôtel ou café calme) pour reprendre des forces. 2 à 3 lieux par jour suffisent.</p></${SafetyBox}>`
             : null}`}
 
     ${list.length === 0
