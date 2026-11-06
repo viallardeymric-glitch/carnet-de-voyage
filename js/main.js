@@ -1,4 +1,5 @@
 // Point d'entrée : configuration → profil → connexion → code PIN → verrou → voyage → onglets.
+import { useSharedKeys } from './core/sharedKeys.js';
 import { html, render, useState, useEffect, useMemo } from '../vendor/preact.js';
 import { initStore, auth, fb, useDoc } from './core/store.js';
 import { ls, getMembers, consumeInvite, watchAppearance } from './core/config.js';
@@ -49,6 +50,7 @@ function App({ mode }) {
   const [tripId, setTripIdState] = useState(ls.get('tripId'));
   const [route, setRoute] = useState(currentRoute());
   const trip = useDoc(tripId && (mode === 'local' || user) ? `trips/${tripId}` : null);
+  useSharedKeys(mode, user, tripId);
 
   useEffect(() => {
     const onHash = () => setRoute(currentRoute());

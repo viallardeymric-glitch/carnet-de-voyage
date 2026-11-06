@@ -5,6 +5,7 @@ import { biometricsSupported, biometricsEnabled, enableBiometrics, disableBiomet
 import { sharingEnabled, setSharingEnabled } from '../core/location.js';
 import { AI_PROVIDERS, getAiKeys, setAiKey } from '../lib/assistant.js';
 import { getGoogleKey, setGoogleKey } from '../lib/photos.js';
+import { pushKey } from '../core/sharedKeys.js';
 import { store } from '../core/store.js';
 import { Card, Button, Chip, Subtitle, Switch, SafetyBox } from '../ui/components.js';
 import { confirm, toast } from '../ui/dialogs.js';
@@ -17,7 +18,7 @@ export default function SettingsView() {
   const [cfgText, setCfgText] = useState('');
   const [aiKeys, setAiKeys] = useState(getAiKeys());
   const [aiDraft, setAiDraft] = useState({});
-  const saveAi = (id, v) => (setAiKey(id, v), setAiKeys(getAiKeys()), setAiDraft({ ...aiDraft, [id]: '' }));
+  const saveAi = (id, v) => (setAiKey(id, v), pushKey(id, v), setAiKeys(getAiKeys()), setAiDraft({ ...aiDraft, [id]: '' }));
   const [gkey, setGkey] = useState('');
   const [hasG, setHasG] = useState(!!getGoogleKey());
   const [names, setNames] = useState({ E: members.E.name, M: members.M.name });
@@ -154,8 +155,8 @@ export default function SettingsView() {
         : 'Sans clé, les photos viennent de Wikipédia. Avec une clé « Places API (New) » de Google Cloud, presque tous les lieux et hôtels ont une photo.'}</div>
       <input class="input" type="password" placeholder="AIza…" value=${gkey} onInput=${(e) => setGkey(e.target.value)} autocomplete="off" />
       <div class="row">
-        <${Button} cls="grow" small title="Enregistrer" disabled=${!gkey} onClick=${() => (setGoogleKey(gkey.trim()), setGkey(''), setHasG(true), toast('Clé Google enregistrée'))} />
-        ${hasG ? html`<${Button} cls="grow" small variant="ghost" title="Supprimer" onClick=${() => (setGoogleKey(null), setHasG(false))} />` : null}
+        <${Button} cls="grow" small title="Enregistrer" disabled=${!gkey} onClick=${() => (setGoogleKey(gkey.trim()), pushKey('google', gkey.trim()), setGkey(''), setHasG(true), toast('Clé Google enregistrée'))} />
+        ${hasG ? html`<${Button} cls="grow" small variant="ghost" title="Supprimer" onClick=${() => (setGoogleKey(null), pushKey('google', null), setHasG(false))} />` : null}
       </div>
     </${Card}>
 

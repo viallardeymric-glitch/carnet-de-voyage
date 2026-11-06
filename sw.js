@@ -1,12 +1,12 @@
 // Service worker : l'app fonctionne hors-ligne (fichiers de l'app + fonds de carte déjà vus).
-const VERSION = 'cdv-v3.1.0';
+const VERSION = 'cdv-v3.1.1';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'icons/apple-touch-icon.png', 'icons/icon-192.png',
   'vendor/preact.js', 'vendor/maplibre/maplibre-gl.js', 'vendor/maplibre/maplibre-gl.css',
   'vendor/fontawesome/css/fontawesome.min.css', 'vendor/fontawesome/css/solid.min.css', 'vendor/fontawesome/css/regular.min.css',
   'vendor/fontawesome/webfonts/fa-solid-900.woff2', 'vendor/fontawesome/webfonts/fa-regular-400.woff2',
-  'js/main.js', 'js/core/app.js', 'js/core/config.js', 'js/core/store.js', 'js/core/lock.js', 'js/core/vault.js', 'js/core/location.js',
+  'js/main.js', 'js/core/app.js', 'js/core/config.js', 'js/core/store.js', 'js/core/lock.js', 'js/core/vault.js', 'js/core/location.js', 'js/core/sharedKeys.js',
   'js/ui/components.js', 'js/ui/dialogs.js', 'js/ui/PinPad.js',
   'js/lib/geo.js', 'js/lib/dates.js', 'js/lib/places.js', 'js/lib/openNow.js', 'js/lib/currency.js', 'js/lib/weather.js',
   'js/lib/photos.js', 'js/lib/google.js', 'js/lib/routing.js', 'js/lib/bookingParser.js', 'js/lib/assistant.js', 'js/lib/trips.js',
