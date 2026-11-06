@@ -42,7 +42,9 @@ export const USER_AGENT = 'CarnetDeVoyageFamille/1.0 (app personnelle)';
 // Configuration Firebase collée par l'utilisateur (même principe que l'app Budget).
 // Accepte le bloc complet « const firebaseConfig = { apiKey: "…", … }; ».
 export function parseFirebaseConfig(text) {
-  const m = String(text || '').match(/\{[\s\S]*\}/);
+  const t = String(text || '');
+  // On vise le bloc « firebaseConfig = { … } » (le texte copié contient aussi des import { … }).
+  const m = t.match(/firebaseConfig\s*=\s*(\{[\s\S]*?\})/)?.slice(1) || t.match(/\{[^{}]*apiKey[^{}]*\}/);
   if (!m) throw new Error('Bloc { … } introuvable');
   const json = m[0]
     .replace(/\/\/.*$/gm, '')
@@ -53,8 +55,24 @@ export function parseFirebaseConfig(text) {
   if (!cfg.apiKey || !cfg.projectId) throw new Error('apiKey ou projectId manquant');
   return cfg;
 }
-export const getFirebaseConfig = () => ls.get('firebase');
-export const setFirebaseConfig = (cfg) => ls.set('firebase', cfg);
+// Configuration de la famille (valeurs publiques par nature : la sécurité vient
+// des règles Firestore, qui n'autorisent que vos deux adresses email).
+export const DEFAULT_FIREBASE = {
+  apiKey: 'AIzaSyDMxdEL2VVZEvyXe4ug6CJIDT3W8z_Fc_w',
+  authDomain: 'carnet-de-voyage-d6532.firebaseapp.com',
+  projectId: 'carnet-de-voyage-d6532',
+  storageBucket: 'carnet-de-voyage-d6532.firebasestorage.app',
+  messagingSenderId: '383044044934',
+  appId: '1:383044044934:web:12d908998e797d509e6907',
+};
+
+// null dans le stockage = valeur par défaut ; false = synchronisation désactivée sur ce téléphone.
+export function getFirebaseConfig() {
+  const v = ls.get('firebase');
+  if (v === false) return null;
+  return v || DEFAULT_FIREBASE;
+}
+export const setFirebaseConfig = (cfg) => ls.set('firebase', cfg || false);
 
 // Lien d'invitation : transmet la configuration Firebase et les prénoms à l'autre téléphone.
 export function inviteLink() {

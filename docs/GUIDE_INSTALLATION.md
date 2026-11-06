@@ -35,23 +35,22 @@
 
 ---
 
-## Étape 3 — Activer la synchronisation (2 min)
+## Étape 3 — Se connecter (déjà configuré)
 
-1. Envoie-toi le bloc copié (Notes, email…) pour l'avoir sur l'iPhone.
-2. Dans l'app : **Plus › Réglages › Synchronisation**, colle le bloc, puis **Activer la synchronisation**.
-3. Connecte-toi avec **ton** email et mot de passe Firebase, puis saisis ton code PIN.
-4. Si tu avais déjà créé le voyage à l'étape 1 : **Réglages › Envoyer les données créées avant la synchro**. (Ou recrée simplement « Noël à Londres ».)
+La configuration Firebase de la famille est intégrée à l'app : il n'y a rien à coller.
+
+1. Ouvre l'app depuis l'icône **Voyage** : elle demande ton **email et ton mot de passe Firebase**.
+2. Connecte-toi, puis saisis ton code PIN.
+3. Si tu avais créé un voyage avant : **Plus › Réglages › Envoyer les données créées avant la synchro** (ou recrée simplement « Noël à Londres »).
 
 ---
 
-## Étape 4 — Inviter Marie (2 min)
+## Étape 4 — Installer chez Marie (2 min)
 
-1. Dans ton app : **Plus › Réglages › Inviter l'autre téléphone**, et envoie le lien à Marie (iMessage, WhatsApp…).
-2. Marie **ouvre le lien dans Safari**, puis fait **Partager › Sur l'écran d'accueil**.
-3. Elle ouvre l'app depuis l'icône, choisit **Je suis Marie**, se connecte avec **son** compte, choisit son code et Face ID.
-4. Dans **Plus › Changer de voyage**, elle choisit « Noël à Londres en famille ». Vous voyez maintenant les mêmes données.
-
-> 💡 Le lien d'invitation contient seulement la configuration Firebase, jamais de mot de passe.
+1. Envoie à Marie le lien **https://viallardeymric-glitch.github.io/carnet-de-voyage/**
+2. Elle l'ouvre dans **Safari**, puis **Partager › Sur l'écran d'accueil**.
+3. Depuis l'icône : **Je suis Marie**, connexion avec **son** compte, code PIN et Face ID.
+4. **Plus › Changer de voyage** : elle choisit « Noël à Londres en famille ».
 
 ---
 
