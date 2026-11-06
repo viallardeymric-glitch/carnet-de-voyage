@@ -1,0 +1,51 @@
+rules_version = '2';
+
+// Règles de sécurité Firestore — « Carnet de Voyage ».
+// Seules les deux adresses ci-dessous peuvent lire ou écrire quoi que ce soit.
+// ➜ Remplacez-les par les emails de vos comptes Firebase (en minuscules).
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isFamily() {
+      return request.auth != null
+        && request.auth.token.email in [
+          'eymric@exemple.fr',
+          'marie@exemple.fr'
+        ];
+    }
+
+    match /trips/{tripId} {
+      allow read, write: if isFamily();
+
+      // Positions : chacun ne peut écrire que « E » ou « M », avec des coordonnées valides.
+      match /positions/{memberId} {
+        allow read: if isFamily();
+        allow write: if isFamily()
+          && memberId in ['E', 'M']
+          && (!('lat' in request.resource.data) || request.resource.data.lat is number);
+      }
+
+      // Journal : photos compressées, taille limitée par document.
+      match /journal/{entryId} {
+        allow read, delete: if isFamily();
+        allow create, update: if isFamily()
+          && (!('photo' in request.resource.data)
+              || request.resource.data.photo == null
+              || request.resource.data.photo.size() < 900000);
+      }
+
+      // Lieux, dépenses, check-list, notes médicales.
+      // (Liste explicite : les règles Firestore s'additionnent, donc on
+      // n'inclut pas « positions » ni « journal » ici.)
+      match /{collection}/{docId} {
+        allow read, write: if isFamily()
+          && collection in ['places', 'expenses', 'checklist', 'meta'];
+      }
+    }
+
+    // Tout le reste est interdit.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
