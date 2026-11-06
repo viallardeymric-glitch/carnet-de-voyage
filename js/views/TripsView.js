@@ -1,12 +1,13 @@
 // Liste des voyages + création (n'importe quelle ville du monde).
 import { html, useState } from '../../vendor/preact.js';
 import { useApp, go } from '../core/app.js';
-import { useCollection } from '../core/store.js';
+import { useCollection, store } from '../core/store.js';
 import { searchCities, searchAddress } from '../lib/places.js';
 import { createTrip, createLondonTrip } from '../lib/trips.js';
 import { frToISO, formatShort } from '../lib/dates.js';
 import { Card, Button, Input, Icon, Subtitle, Empty } from '../ui/components.js';
-import { toast } from '../ui/dialogs.js';
+import { toast, confirm } from '../ui/dialogs.js';
+import { ls } from '../core/config.js';
 
 export default function TripsView() {
   const { tripId, setTripId, memberId } = useApp();
@@ -26,6 +27,20 @@ export default function TripsView() {
   const choose = (id) => {
     setTripId(id);
     go('planning');
+  };
+
+  const del = async (e, t) => {
+    e.stopPropagation();
+    const vault = ls.get('vaultTrip', null) === t.id;
+    const ok = await confirm(
+      `Supprimer « ${t.name} » ?`,
+      `Le voyage disparaîtra des deux téléphones (planning, lieux, budget, journal).${vault ? ' Le coffre-fort, lui, est conservé.' : ''}`,
+      'Supprimer'
+    );
+    if (!ok) return;
+    await store.remove(`trips/${t.id}`);
+    if (t.id === tripId) setTripId(trips.find((x) => x.id !== t.id)?.id || null);
+    toast('Voyage supprimé');
   };
 
   const london = async () => {
@@ -72,6 +87,7 @@ export default function TripsView() {
               <div class="bold" style="font-size:17px">${t.name}</div>
               <div class="muted small">${t.city?.name} · ${t.startDate && formatShort(t.startDate)} → ${t.endDate && formatShort(t.endDate)}</div>
             </div>
+            <button class="iconbtn" aria-label="Supprimer le voyage" onClick=${(e) => del(e, t)}><${Icon} name="trash-can" /></button>
             <${Icon} name="chevron-right" cls="muted" />
           </div>
         </${Card}>`

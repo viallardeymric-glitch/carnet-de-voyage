@@ -19,7 +19,7 @@ import { Chip, Icon, MemberBadge, Thumb } from '../ui/components.js';
 import { toast } from '../ui/dialogs.js';
 
 const STYLE = 'https://tiles.openfreemap.org/styles/liberty';
-const VIEW_3D = { pitch: 60, bearing: -20 };
+const VIEW_3D = { pitch: 52, bearing: -20 };
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const ago = (ms) => {
@@ -73,12 +73,12 @@ function decorate(m) {
   }
   try {
     m.setSky({
-      'sky-color': '#8EC9F5',
-      'horizon-color': '#FFE4CF',
-      'fog-color': '#FFF4EA',
-      'sky-horizon-blend': 0.6,
-      'horizon-fog-blend': 0.7,
-      'fog-ground-blend': 0.35,
+      'sky-color': '#5DB4F0',
+      'horizon-color': '#CFEAFB',
+      'fog-color': '#CFEAFB',
+      'sky-horizon-blend': 0.5,
+      'horizon-fog-blend': 0.15,
+      'fog-ground-blend': 0.95,
     });
   } catch {
     // ancienne version : pas de ciel, sans gravité

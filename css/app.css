@@ -382,3 +382,13 @@ html[data-dark] .card .input { background: #24272D; }
 .faceid { margin-top: 40px; width: 170px; height: 170px; border-radius: 44px; border: 0; cursor: pointer; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
   background: linear-gradient(135deg, var(--navy), var(--navy-2)); box-shadow: 0 12px 30px color-mix(in srgb, var(--navy) 35%, transparent); font: inherit; font-weight: 700; font-size: 13px; padding: 14px; }
 .faceid i { font-size: 54px; }
+
+/* v3.6 : iOS 26 rogne les éléments « fixed » à une hauteur trop courte → l'app est posée en absolu
+   dans une page à la hauteur exacte de l'écran ; le fond de page prend la couleur de la barre du bas. */
+html, body { height: var(--app-h, 100%); overflow: hidden; background: var(--card); }
+#app { position: absolute; background: var(--bg); }
+.tripbar { position: absolute; background: linear-gradient(180deg, var(--card) 0, var(--card) var(--safe-top), transparent var(--safe-top)); }
+.tripcard { background: var(--card); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.tabbar { background: var(--card); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.overlay, .viewer { position: absolute; top: 0; left: 0; right: 0; bottom: auto; height: var(--app-h, 100%); }
+.toast { position: absolute; }
