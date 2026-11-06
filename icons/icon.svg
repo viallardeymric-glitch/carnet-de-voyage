@@ -1,30 +1,34 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#FFA35C"/>
-      <stop offset="1" stop-color="#E5485A"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0" stop-color="#FFC15E"/>
+      <stop offset=".55" stop-color="#FF7A59"/>
+      <stop offset="1" stop-color="#E8436E"/>
     </linearGradient>
     <linearGradient id="pin" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#FFFFFF"/>
-      <stop offset="1" stop-color="#FFF1E8"/>
+      <stop offset="1" stop-color="#FFEFE9"/>
     </linearGradient>
+    <filter id="sh" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#9C1F45" flood-opacity=".35"/>
+    </filter>
   </defs>
   <rect width="512" height="512" fill="url(#bg)"/>
-  <!-- globe -->
-  <g fill="none" stroke="#FFFFFF" stroke-opacity=".28" stroke-width="10">
-    <circle cx="256" cy="282" r="150"/>
-    <ellipse cx="256" cy="282" rx="68" ry="150"/>
-    <path d="M110 232h292M110 332h292"/>
-  </g>
-  <!-- trajet en pointillés -->
-  <path d="M112 380 C 170 250, 330 410, 392 196" fill="none" stroke="#FFFFFF" stroke-width="14" stroke-linecap="round" stroke-dasharray="2 30"/>
-  <!-- repère -->
-  <g transform="translate(256 86)">
-    <path d="M0 0c-46 0-82 35-82 80 0 58 82 140 82 140s82-82 82-140c0-45-36-80-82-80z" fill="url(#pin)" stroke="#FFFFFF" stroke-width="0"/>
-    <circle cx="0" cy="80" r="30" fill="#EF5B5B"/>
+  <!-- soleil -->
+  <circle cx="370" cy="150" r="62" fill="#FFFFFF" fill-opacity=".22"/>
+  <circle cx="370" cy="150" r="40" fill="#FFFFFF" fill-opacity=".35"/>
+  <!-- collines -->
+  <path d="M0 420 C 110 360 200 400 290 372 C 380 344 440 360 512 340 V512 H0z" fill="#FFFFFF" fill-opacity=".16"/>
+  <path d="M0 462 C 120 420 240 452 340 430 C 420 412 470 420 512 410 V512 H0z" fill="#FFFFFF" fill-opacity=".14"/>
+  <!-- trajet -->
+  <path d="M86 404 C 130 330 170 330 200 352" fill="none" stroke="#FFFFFF" stroke-width="13" stroke-linecap="round" stroke-dasharray="1 28"/>
+  <!-- repère avec coeur -->
+  <g transform="translate(256 98)" filter="url(#sh)">
+    <path d="M0 0c-66 0-118 50-118 114 0 84 118 196 118 196s118-112 118-196C118 50 66 0 0 0z" fill="url(#pin)"/>
+    <path d="M0 160c-6-5-56-38-56-74 0-20 15-34 33-34 11 0 19 6 23 13 4-7 12-13 23-13 18 0 33 14 33 34 0 36-50 69-56 74z" fill="#F2556D"/>
   </g>
   <!-- avion -->
-  <g transform="translate(392 196) rotate(-38)" fill="#FFFFFF">
+  <g transform="translate(98 112) rotate(-30) scale(.78)" fill="#FFFFFF">
     <path d="M-46 0c0-7 6-11 13-11h22l26-38h15l-12 38h28l11-14h11l-6 25 6 25h-11l-11-14h-28l12 38h-15l-26-38h-22c-7 0-13-4-13-11z"/>
   </g>
 </svg>
