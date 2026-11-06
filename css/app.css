@@ -372,3 +372,10 @@ html[data-dark] .card .input { background: #24272D; }
 .tripinfo b { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tripinfo small { font-size: 12px; color: var(--navy); font-weight: 700; }
 .content.full .map-top { top: calc(var(--safe-top) + 66px); }
+
+/* v3.5.3 : plein écran exact sur iPhone + en-tête net (sans photo ni effet givré) */
+#app { inset: auto; top: 0; left: 0; right: 0; height: var(--app-h, 100%); }
+.hero-head { background: linear-gradient(135deg, var(--navy), var(--navy-2)); }
+.hero-head::before, .hero-head::after { opacity: .7; }
+.hh-trip, .hh-back { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(255,255,255,.2); }
+.tabbar { padding-bottom: max(var(--safe-bottom), 10px); }
