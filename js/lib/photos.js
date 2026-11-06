@@ -200,3 +200,76 @@ export async function cityPhoto(city, width = 900) {
   if (url || !failed) ls.set(key, { url, at: Date.now() });
   return url;
 }
+
+// Article Wikipédia correspondant à un lieu (même méthode que pour les photos), en français si possible.
+async function titleNear(lang, place) {
+  const d = await getJson(
+    `https://${lang}.wikipedia.org/w/api.php?action=query&format=json&origin=*&list=geosearch&gscoord=${place.lat}%7C${place.lon}&gsradius=400&gslimit=30`
+  );
+  let pick = null;
+  for (const p of d.query?.geosearch || []) {
+    const sc = likeness(place.name, p.title);
+    if (sc >= 0.5 && (!pick || sc > pick.sc)) pick = { sc, title: p.title };
+  }
+  return pick?.title || null;
+}
+async function titleByName(lang, place, city) {
+  const d = await getJson(
+    `https://${lang}.wikipedia.org/w/api.php?action=query&format=json&origin=*&list=search&srsearch=${encodeURIComponent(`${norm(place.name)} ${city || ''}`)}&srlimit=3`
+  );
+  const hit = (d.query?.search || []).find((p) => likeness(place.name, p.title) >= 0.6);
+  return hit?.title || null;
+}
+async function toFrench(title) {
+  const d = await getJson(`https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*&prop=langlinks&lllang=fr&titles=${encodeURIComponent(title)}`);
+  const page = Object.values(d.query?.pages || {})[0];
+  return page?.langlinks?.[0]?.['*'] || null;
+}
+
+export async function findArticle(place, city) {
+  const key = `wiki:${photoKey(place)}`;
+  const hit = ls.get(key);
+  if (hit && (hit.title || Date.now() - hit.at < WEEK)) return hit.title ? hit : null;
+  let res = null;
+  try {
+    const t = place.tags || {};
+    if (t.wikipedia) {
+      const i = t.wikipedia.indexOf(':');
+      res = { lang: t.wikipedia.slice(0, i), title: t.wikipedia.slice(i + 1) };
+    }
+    if (!res && place.lat != null) {
+      const fr = await titleNear('fr', place);
+      if (fr) res = { lang: 'fr', title: fr };
+      else {
+        const en = await titleNear('en', place);
+        if (en) res = { lang: 'en', title: en };
+      }
+    }
+    if (!res && place.name) {
+      const fr = await titleByName('fr', place, city);
+      res = fr ? { lang: 'fr', title: fr } : null;
+      if (!res) {
+        const en = await titleByName('en', place, city);
+        if (en) res = { lang: 'en', title: en };
+      }
+    }
+    if (res?.lang === 'en') {
+      const fr = await toFrench(res.title).catch(() => null);
+      if (fr) res = { lang: 'fr', title: fr };
+    }
+  } catch {
+    return null; // réseau : on ne mémorise rien
+  }
+  ls.set(key, { ...(res || {}), at: Date.now() });
+  return res;
+}
+
+// Texte de l'article (début, environ 5 000 caractères), en paragraphes.
+export async function articleText({ lang, title }) {
+  const d = await getJson(
+    `https://${lang}.wikipedia.org/w/api.php?action=query&format=json&origin=*&redirects=1&prop=extracts&explaintext=1&exsectionformat=plain&exchars=5000&titles=${encodeURIComponent(title)}`
+  );
+  const page = Object.values(d.query?.pages || {})[0];
+  const text = (page?.extract || '').replace(/\n{2,}/g, '\n').trim();
+  return text ? { text, url: `https://${lang}.m.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`, lang } : null;
+}

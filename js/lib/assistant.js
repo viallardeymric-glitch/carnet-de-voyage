@@ -95,16 +95,16 @@ async function readError(res) {
   return new Error(d?.error?.message || `Erreur ${res.status}`);
 }
 
-async function viaGemini(key, prompt) {
+async function viaGemini(key, prompt, { system = SYSTEM, max = 800 } = {}) {
   let last;
   for (const model of ['gemini-flash-latest', 'gemini-2.5-flash']) {
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: SYSTEM }] },
+        systemInstruction: { parts: [{ text: system }] },
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: { maxOutputTokens: 800, temperature: 0.7 },
+        generationConfig: { maxOutputTokens: max + 2000, temperature: 0.6 },
       }),
     });
     if (res.ok) {
@@ -117,7 +117,7 @@ async function viaGemini(key, prompt) {
   throw last;
 }
 
-async function viaGroq(key, prompt) {
+async function viaGroq(key, prompt, { system = SYSTEM, max = 800 } = {}) {
   let last;
   for (const model of ['openai/gpt-oss-120b', 'llama-3.3-70b-versatile']) {
     const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -125,9 +125,9 @@ async function viaGroq(key, prompt) {
       headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
       body: JSON.stringify({
         model,
-        max_tokens: 800,
+        max_tokens: max,
         messages: [
-          { role: 'system', content: SYSTEM },
+          { role: 'system', content: system },
           { role: 'user', content: prompt },
         ],
       }),
@@ -139,7 +139,7 @@ async function viaGroq(key, prompt) {
   throw last;
 }
 
-async function viaClaude(key, prompt) {
+async function viaClaude(key, prompt, { system = SYSTEM, max = 800 } = {}) {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -148,7 +148,7 @@ async function viaClaude(key, prompt) {
       'anthropic-version': '2023-06-01',
       'anthropic-dangerous-direct-browser-access': 'true',
     },
-    body: JSON.stringify({ model: CLAUDE_MODEL, max_tokens: 600, system: SYSTEM, messages: [{ role: 'user', content: prompt }] }),
+    body: JSON.stringify({ model: CLAUDE_MODEL, max_tokens: max, system, messages: [{ role: 'user', content: prompt }] }),
   });
   if (!res.ok) throw await readError(res);
   const data = await res.json();
@@ -157,7 +157,9 @@ async function viaClaude(key, prompt) {
 
 // Question libre avec le contexte du voyage : Gemini, puis Groq, puis Claude (le suivant prend le relais
 // si le premier est indisponible ou a atteint son quota gratuit).
-export async function askAI({ question, context }) {
+export const hasAI = () => Object.values(getAiKeys()).some(Boolean);
+
+export async function askAI({ question, context, system, max }) {
   const keys = getAiKeys();
   const order = [
     ['gemini', viaGemini],
@@ -165,11 +167,11 @@ export async function askAI({ question, context }) {
     ['claude', viaClaude],
   ].filter(([id]) => keys[id]);
   if (!order.length) throw new Error("Ajoutez une clé Gemini ou Groq (gratuites) dans Réglages pour activer l'IA.");
-  const prompt = `Contexte : ${JSON.stringify(context)}\n\nQuestion : ${question}`;
+  const prompt = context ? `Contexte : ${JSON.stringify(context)}\n\nQuestion : ${question}` : question;
   let last;
   for (const [id, fn] of order) {
     try {
-      return await fn(keys[id], prompt);
+      return await fn(keys[id], prompt, { system: system || SYSTEM, max: max || 800 });
     } catch (e) {
       last = e;
     }

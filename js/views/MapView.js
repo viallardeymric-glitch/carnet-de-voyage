@@ -7,7 +7,7 @@ import { useApp, go } from '../core/app.js';
 import { useCollection } from '../core/store.js';
 import { useLiveLocation } from '../core/location.js';
 import { otherMember } from '../core/config.js';
-import { CATEGORIES, categoryById } from '../data/categories.js';
+import { CATEGORIES, categoryById, subById } from '../data/categories.js';
 import { fetchPlaces } from '../lib/places.js';
 import { nearbyGoogle, hasGoogle } from '../lib/google.js';
 import { isOpenNow, loadOpeningHours } from '../lib/openNow.js';
@@ -104,6 +104,7 @@ export default function MapView() {
   const map = useRef(null);
   const markers = useRef([]);
   const [category, setCategory] = useState(null);
+  const [subId, setSubId] = useState(null);
   const [openOnly, setOpenOnly] = useState(false);
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -167,11 +168,12 @@ export default function MapView() {
 
   // Recherche : Google (rapide, les plus populaires, avec notes) et OpenStreetMap en parallèle.
   const searchId = useRef(0);
-  const search = async (catId) => {
+  const search = async (catId, sId = subId) => {
     if (!map.current || !catId) return;
+    const sub = sId ? subById(catId, sId) : null;
     const c = map.current.getCenter();
     const center = { lat: c.lat, lon: c.lng };
-    const radius = catId === 'sante' ? 3000 : 1800;
+    const radius = catId === 'sante' ? 3000 : sub ? 1500 : 1800;
     const id = ++searchId.current;
     setLoading(true);
     let google = [];
@@ -182,16 +184,16 @@ export default function MapView() {
     const jobs = [];
     if (hasGoogle())
       jobs.push(
-        nearbyGoogle(catId, center, radius)
+        nearbyGoogle(catId, center, radius, sub)
           .then((list) => {
-            google = list;
+            google = list.map((x) => ({ ...x, sub: sId || null }));
             if (id === searchId.current) setResults((prev) => merge(prev.filter((r) => !r.googleId)));
           })
           .catch((e) => console.warn('google', e.message))
       );
     jobs.push(
-      fetchPlaces(catId, center, radius, 150)
-        .then((osm) => id === searchId.current && setResults(merge(osm)))
+      fetchPlaces(catId, center, radius, 150, sub)
+        .then((osm) => id === searchId.current && setResults(merge(osm.map((x) => ({ ...x, sub: sId || null })))))
         .catch(() => {})
     );
     await Promise.all(jobs);
@@ -206,9 +208,17 @@ export default function MapView() {
   const pickCategory = (id) => {
     const next = category === id ? null : id;
     setCategory(next);
+    setSubId(null);
     setResults([]);
-    if (next) search(next);
+    if (next) search(next, null);
   };
+  const pickSub = (id) => {
+    const next = subId === id ? null : id;
+    setSubId(next);
+    setResults([]);
+    search(category, next);
+  };
+
 
   const cc = trip?.city?.countryCode;
   const plan = useMemo(() => {
@@ -272,7 +282,9 @@ export default function MapView() {
     draw(
       'results',
       visibleResults.map((p) => {
-        const c = categoryById(p.category);
+        let c = categoryById(p.category);
+        const sb = p.sub && subById(p.category, p.sub);
+        if (sb) c = { ...c, icon: sb.icon };
         const node = p.rating
           ? el('mk mk-rate', `<i class="fa-solid fa-${c.icon}"></i><b>${p.rating.toFixed(1)}</b>`, `--c:${c.color}`)
           : el('mk mk-dot', `<i class="fa-solid fa-${c.icon}"></i>`, `--c:${c.color}`);
@@ -362,6 +374,13 @@ export default function MapView() {
         <${Chip} label="Ouvert maintenant" icon="clock" active=${openOnly} onClick=${() => setOpenOnly(!openOnly)} color="var(--success)" />
         ${CATEGORIES.map((c) => html`<${Chip} label=${c.label} icon=${c.icon} active=${category === c.id} color=${c.color} onClick=${() => pickCategory(c.id)} />`)}
       </div>
+      ${category && categoryById(category).subs
+        ? html`<div class="chips subchips">
+            ${categoryById(category).subs.map(
+              (sb) => html`<${Chip} label=${sb.label} icon=${sb.icon} active=${subId === sb.id} color=${categoryById(category).color} onClick=${() => pickSub(sb.id)} />`
+            )}
+          </div>`
+        : null}
       ${partner && gap != null
         ? html`<div class="banner">
             <${MemberBadge} member=${members[partner.id]} size=${24} />
@@ -381,7 +400,7 @@ export default function MapView() {
 
     <div class=${`fabs ${sel ? 'hide' : ''}`}>
       ${loading ? html`<div class="spinner" style="margin:0"></div>` : null}
-      ${category && !loading ? html`<button class="fab wide" onClick=${() => search(category)}><${Icon} name="rotate" />Chercher ici</button>` : null}
+      ${category && !loading ? html`<button class="fab wide" onClick=${() => search(category, subId)}><${Icon} name="rotate" />Chercher ici</button>` : null}
       <button class="fab fab-text" onClick=${toggle3d} aria-label="Vue 2D ou 3D">${is3d ? '2D' : '3D'}</button>
       ${Math.abs(bearing) > 2
         ? html`<button class="fab" onClick=${() => map.current?.easeTo({ bearing: 0, duration: 700 })} aria-label="Nord"><span class="compass" style=${`transform:rotate(${-bearing}deg)`}><${Icon} name="location-arrow" /></span></button>`

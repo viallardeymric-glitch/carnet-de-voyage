@@ -326,3 +326,17 @@ html[data-dark] .card .input { background: #24272D; }
 .gallery-count { position: absolute; right: 12px; top: 12px; margin: 0; }
 .pill { white-space: nowrap; padding: 7px 10px; }
 .fab.wide { text-transform: none; font-family: inherit; letter-spacing: 0; }
+.subchips { margin-top: 6px; }
+.subchips .chip { font-size: 12px; padding: 5px 10px; }
+/* Guide de visite et histoire */
+.guide h4 { margin: 12px 0 4px; font-size: 14px; color: var(--navy); display: flex; align-items: center; gap: 6px; }
+.guide h4:first-child { margin-top: 0; }
+.guide ul { margin: 0; padding-left: 18px; }
+.guide li { margin: 3px 0; font-size: 14px; line-height: 1.45; }
+.guide p { margin: 0 0 4px; font-size: 14px; line-height: 1.5; }
+.history { max-height: 190px; overflow: hidden; position: relative; }
+.history::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 50px; background: linear-gradient(transparent, var(--card)); }
+.history.open { max-height: none; }
+.history.open::after { display: none; }
+.history p { margin: 0 0 8px; font-size: 14px; line-height: 1.55; }
+.linkbtn { background: none; border: 0; padding: 4px 0; color: var(--navy); font-weight: 700; font-size: 13px; cursor: pointer; display: inline-flex; gap: 5px; align-items: center; }

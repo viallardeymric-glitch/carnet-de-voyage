@@ -1,11 +1,12 @@
 // Fiche détaillée d'un lieu : photo, histoire, horaires, avis, « J'adore ! », Y aller.
 import { html, useEffect, useState } from '../../vendor/preact.js';
-import { useApp, navState, back } from '../core/app.js';
+import { useApp, navState, back, go } from '../core/app.js';
 import { useCollection } from '../core/store.js';
 import { getPosition } from '../core/location.js';
 import { categoryById } from '../data/categories.js';
 import { fetchWikiSummary } from '../lib/places.js';
-import { findPhoto } from '../lib/photos.js';
+import { findPhoto, findArticle, articleText } from '../lib/photos.js';
+import { VISITABLE, hasGuide, cachedGuide, writeGuide } from '../lib/guide.js';
 import { placeDetails, photoUrl, PRICE } from '../lib/google.js';
 import { isOpenNow, loadOpeningHours } from '../lib/openNow.js';
 import { distanceMeters, formatDistance, familyWalkMinutes } from '../lib/geo.js';
@@ -14,6 +15,26 @@ import { savePlace, removePlace } from '../lib/trips.js';
 import { tripDays, formatDay } from '../lib/dates.js';
 import { Card, Button, Chip, Icon, Subtitle, SafetyBox, Empty } from '../ui/components.js';
 import { actionSheet, confirm } from '../ui/dialogs.js';
+
+// Mise en forme simple du guide : « ## » titres, « - » listes, **gras**.
+function md(text) {
+  const blocks = [];
+  const inline = (t) => t.split(/\*\*(.+?)\*\*/g).map((part, i) => (i % 2 ? html`<b>${part}</b>` : part));
+  for (const raw of text.split('\n')) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (/^#{1,4}\s/.test(line)) blocks.push({ t: 'h', v: line.replace(/^#+\s*/, '') });
+    else if (/^[-*•]\s/.test(line)) {
+      const last = blocks[blocks.length - 1];
+      const item = line.replace(/^[-*•]\s*/, '');
+      if (last?.t === 'ul') last.v.push(item);
+      else blocks.push({ t: 'ul', v: [item] });
+    } else blocks.push({ t: 'p', v: line.replace(/^\*\*(.+)\*\*$/, '$1') });
+  }
+  return blocks.map((b) =>
+    b.t === 'h' ? html`<h4>${b.v}</h4>` : b.t === 'ul' ? html`<ul>${b.v.map((x) => html`<li>${inline(x)}</li>`)}</ul>` : html`<p>${inline(b.v)}</p>`
+  );
+}
 
 export default function PlaceView() {
   const { trip, tripId, path, memberId, members } = useApp();
@@ -24,6 +45,11 @@ export default function PlaceView() {
   const [g, setG] = useState(null);
   const [gBusy, setGBusy] = useState(false);
   const [openReview, setOpenReview] = useState(-1);
+  const [article, setArticle] = useState(null);
+  const [fullText, setFullText] = useState(false);
+  const [guide, setGuide] = useState(null);
+  const [guideBusy, setGuideBusy] = useState(false);
+  const [guideErr, setGuideErr] = useState('');
   const [me, setMe] = useState(null);
   const [mode, setMode] = useState('walk');
   const [ohReady, setOhReady] = useState(false);
@@ -35,6 +61,17 @@ export default function PlaceView() {
     if (!place) return;
     setPhoto(null);
     setG(null);
+    setArticle(null);
+    setFullText(false);
+    setGuideErr('');
+    setGuide(cachedGuide(place));
+    const visitable = VISITABLE.includes(place.category) && !place.isLodging;
+    const articleJob = visitable
+      ? findArticle(place, trip?.city?.name)
+          .then((a) => (a ? articleText(a) : null))
+          .catch(() => null)
+      : Promise.resolve(null);
+    articleJob.then(setArticle);
     setGBusy(true);
     placeDetails(place, trip?.city?.name)
       .then(setG)
@@ -47,6 +84,24 @@ export default function PlaceView() {
     getPosition().then(setMe);
     if (place.tags?.opening_hours) loadOpeningHours().then(() => setOhReady(true));
   }, [initial]);
+
+  const visitable = place && VISITABLE.includes(place.category) && !place.isLodging;
+  const makeGuide = async (force = false) => {
+    if (!hasGuide()) return;
+    setGuideBusy(true);
+    setGuideErr('');
+    try {
+      setGuide(
+        await writeGuide(place, { city: trip?.city?.name, wiki: article?.text || wiki?.text, summary: g?.editorialSummary?.text, kind: g?.primaryTypeDisplayName?.text }, force)
+      );
+    } catch (e) {
+      setGuideErr(e.message || 'Erreur');
+    }
+    setGuideBusy(false);
+  };
+  useEffect(() => {
+    if (visitable && !guide && !guideBusy && !gBusy && hasGuide()) makeGuide();
+  }, [visitable, gBusy, article]);
 
   if (!place) return html`<div class="page"><${Empty} text="Lieu introuvable." /></div>`;
 
@@ -135,6 +190,18 @@ export default function PlaceView() {
             : html`<button class="act" onClick=${() => openDirections(place, mode)}><${Icon} name="diamond-turn-right" /><span>Y aller</span></button>`}
         </div>`}
 
+    ${visitable
+      ? html`<div class="row between"><${Subtitle}>Guide de visite</${Subtitle}>
+            ${guide && !guideBusy ? html`<button class="linkbtn" onClick=${() => makeGuide(true)}><${Icon} name="rotate" /> Refaire</button>` : null}</div>
+          ${guide
+            ? html`<${Card} cls="guide">${md(guide)}</${Card}>`
+            : guideBusy || (gBusy && hasGuide())
+              ? html`<${Card} cls="guide"><div class="muted small mb"><${Icon} name="wand-magic-sparkles" /> Rédaction du guide…</div><div class="skeleton mb"></div><div class="skeleton mb" style="width:85%"></div><div class="skeleton" style="width:70%"></div></${Card}>`
+              : hasGuide()
+                ? html`<${Card}><div class="small">${guideErr ? `Guide indisponible (${guideErr}).` : ''}</div><${Button} small title="Écrire le guide" icon="wand-magic-sparkles" onClick=${() => makeGuide(true)} /></${Card}>`
+                : html`<${Card} onClick=${() => go('reglages')}><div class="row"><${Icon} name="wand-magic-sparkles" style="color:var(--navy)" /><div class="grow small">Ajoutez une clé Gemini ou Groq (gratuites) dans Réglages pour obtenir un guide de visite détaillé : à ne pas manquer, avec votre fille, confort pour Marie…</div><${Icon} name="chevron-right" cls="muted" /></div></${Card}>`}`
+      : null}
+
     <${Subtitle}>Y aller</${Subtitle}>
     <${Card}>
       <div class="chips mb">${MODES.map((m) => html`<${Chip} label=${m.label} icon=${m.icon} active=${mode === m.id} onClick=${() => setMode(m.id)} />`)}</div>
@@ -172,11 +239,12 @@ export default function PlaceView() {
           </${Card}>`
       : null}
 
-    ${wiki?.text
+    ${article?.text || wiki?.text
       ? html`<${Subtitle}>Histoire</${Subtitle}>
           <${Card}>
-            <div>${wiki.text}</div>
-            ${wiki.url ? html`<a href=${wiki.url} target="_blank" class="bold" style="display:block;margin-top:8px">Lire sur Wikipédia ›</a>` : null}
+            <div class=${`history ${fullText ? 'open' : ''}`}>${(article?.text || wiki.text).split('\n').map((p) => html`<p>${p}</p>`)}</div>
+            ${article?.text && article.text.length > 600 ? html`<button class="linkbtn" onClick=${() => setFullText(!fullText)}>${fullText ? 'Réduire' : 'Lire la suite'}</button>` : null}
+            ${(article?.url || wiki?.url) ? html`<a href=${article?.url || wiki.url} target="_blank" class="bold small" style="display:block;margin-top:8px">Article complet sur Wikipédia ›</a>` : null}
           </${Card}>`
       : null}
 

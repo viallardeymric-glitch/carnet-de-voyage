@@ -19,6 +19,7 @@ const TYPES = {
   musees: ['museum', 'art_gallery'],
   pluie: ['museum', 'aquarium', 'movie_theater', 'library', 'shopping_mall', 'bowling_alley', 'amusement_center'],
   sante: ['hospital', 'pharmacy', 'doctor'],
+  pratique: ['atm', 'public_bathroom', 'supermarket', 'subway_station'],
 };
 
 async function call(path, { method = 'GET', body, fields }) {
@@ -63,28 +64,36 @@ function toPlace(g, categoryId) {
   };
 }
 
-// Les 20 lieux les plus populaires d'une catégorie autour d'un point (gardés 1 jour).
-export async function nearbyGoogle(categoryId, center, radius = 1500) {
-  const key = `g:near:${categoryId}:${center.lat.toFixed(3)},${center.lon.toFixed(3)}:${radius}`;
+// Les 20 lieux les plus populaires d'une catégorie (ou d'une sous-catégorie : boulangerie,
+// kebab, distributeurs…) autour d'un point. Gardés 1 jour.
+export async function nearbyGoogle(categoryId, center, radius = 1500, sub = null) {
+  const key = `g:near:${categoryId}:${sub?.id || ''}:${center.lat.toFixed(3)},${center.lon.toFixed(3)}:${radius}`;
   const hit = ls.get(key);
   if (hit && Date.now() - hit.at < DAY) return hit.list;
-  const types = TYPES[categoryId] || ['tourist_attraction'];
-  const body = (t) => ({
-    includedTypes: t,
-    maxResultCount: 20,
-    rankPreference: 'POPULARITY',
-    languageCode: 'fr',
-    locationRestriction: { circle: { center: { latitude: center.lat, longitude: center.lon }, radius: Math.min(radius, 50000) } },
-  });
+  const circle = { center: { latitude: center.lat, longitude: center.lon }, radius: Math.min(radius, 50000) };
   let d;
-  try {
-    d = await call('places:searchNearby', { method: 'POST', body: body(types), fields: LIST_FIELDS });
-  } catch (e) {
-    // Un type inconnu de Google → on réessaie avec le premier type seulement.
-    if (e.status !== 400 || types.length === 1) throw e;
-    d = await call('places:searchNearby', { method: 'POST', body: body(types.slice(0, 2)), fields: LIST_FIELDS });
+  if (sub?.text) {
+    // Pas de type Google dédié (kebab, McDo…) : recherche par mots-clés autour du point.
+    d = await call('places:searchText', {
+      method: 'POST',
+      body: { textQuery: sub.text, maxResultCount: 20, languageCode: 'fr', locationBias: { circle } },
+      fields: LIST_FIELDS,
+    });
+  } else {
+    const types = sub?.google || TYPES[categoryId] || ['tourist_attraction'];
+    const body = (t) => ({ includedTypes: t, maxResultCount: 20, rankPreference: 'POPULARITY', languageCode: 'fr', locationRestriction: { circle } });
+    try {
+      d = await call('places:searchNearby', { method: 'POST', body: body(types), fields: LIST_FIELDS });
+    } catch (e) {
+      // Un type inconnu de Google → on réessaie avec le premier type seulement.
+      if (e.status !== 400 || types.length === 1) throw e;
+      d = await call('places:searchNearby', { method: 'POST', body: body(types.slice(0, 1)), fields: LIST_FIELDS });
+    }
   }
-  const list = (d.places || []).map((g) => toPlace(g, categoryId)).filter((p) => p.lat != null);
+  const list = (d.places || [])
+    .map((g) => toPlace(g, categoryId))
+    .filter((p) => p.lat != null)
+    .filter((p) => !sub?.text || Math.abs(p.lat - center.lat) < 0.03); // reste dans le quartier
   ls.set(key, { at: Date.now(), list });
   return list;
 }

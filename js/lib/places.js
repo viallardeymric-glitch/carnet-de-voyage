@@ -70,7 +70,10 @@ function toPlace(el, categoryId) {
   const lon = el.lon ?? el.center?.lon;
   return {
     osmId: `${el.type}/${el.id}`,
-    name: t['name:fr'] || t.name || (t.amenity === 'pharmacy' ? 'Pharmacie' : 'Sans nom'),
+    name:
+      t['name:fr'] || t.name || t.brand ||
+      ({ pharmacy: 'Pharmacie', atm: `Distributeur${t.operator ? ` ${t.operator}` : ''}`, toilets: 'Toilettes publiques', bureau_de_change: 'Bureau de change', ice_cream: 'Glacier' }[t.amenity] ||
+        (t.shop === 'bakery' ? 'Boulangerie' : t.changing_table === 'yes' ? 'Table à langer' : t.tourism === 'viewpoint' ? 'Point de vue' : t.leisure === 'playground' ? 'Aire de jeux' : 'Sans nom')),
     category: categoryId,
     lat,
     lon,
@@ -91,10 +94,10 @@ function toPlace(el, categoryId) {
 }
 
 // Lieux d'une catégorie dans un rayon (mètres) autour d'un point.
-export async function fetchPlaces(categoryId, center, radius = 1500, limit = 120) {
+export async function fetchPlaces(categoryId, center, radius = 1500, limit = 120, sub = null) {
   const cat = categoryById(categoryId);
   const around = `(around:${radius},${center.lat},${center.lon})`;
-  const parts = cat.query.map((q) => `${q}${around};`).join('');
+  const parts = (sub?.osm || cat.query).map((q) => `${q}${around};`).join('');
   const query = `[out:json][timeout:25];(${parts});out center ${limit};`;
   const data = await overpass(query);
   const seen = new Set();
