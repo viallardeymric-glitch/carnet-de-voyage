@@ -6,7 +6,7 @@ import { getPosition } from '../core/location.js';
 import { categoryById } from '../data/categories.js';
 import { fetchWikiSummary } from '../lib/places.js';
 import { findPhoto, findArticle, articleText } from '../lib/photos.js';
-import { VISITABLE, hasGuide, cachedGuide, writeGuide } from '../lib/guide.js';
+import { VISITABLE, hasGuide, cachedGuide, writeGuide, hasGuideFor, guideTitle } from '../lib/guide.js';
 import { getParty } from '../lib/party.js';
 import { placeDetails, photoUrl, PRICE } from '../lib/google.js';
 import { isOpenNow, loadOpeningHours } from '../lib/openNow.js';
@@ -87,13 +87,14 @@ export default function PlaceView() {
   }, [initial]);
 
   const visitable = place && VISITABLE.includes(place.category) && !place.isLodging;
+  const guided = hasGuideFor(place);
   const makeGuide = async (force = false) => {
     if (!hasGuide()) return;
     setGuideBusy(true);
     setGuideErr('');
     try {
       setGuide(
-        await writeGuide(place, { city: trip?.city?.name, wiki: article?.text || wiki?.text, summary: g?.editorialSummary?.text, kind: g?.primaryTypeDisplayName?.text, party: getParty(trip), month: trip?.startDate ? new Date(trip.startDate).toLocaleDateString('fr-FR', { month: 'long' }) : '' }, force)
+        await writeGuide(place, { city: trip?.city?.name, wiki: article?.text || wiki?.text, summary: g?.editorialSummary?.text, reviews: (g?.reviews || []).map((r) => r.text?.text || r.originalText?.text || '').filter(Boolean).join(' / '), kind: g?.primaryTypeDisplayName?.text, party: getParty(trip), month: trip?.startDate ? new Date(trip.startDate).toLocaleDateString('fr-FR', { month: 'long' }) : '' }, force)
       );
     } catch (e) {
       setGuideErr(e.message || 'Erreur');
@@ -101,8 +102,8 @@ export default function PlaceView() {
     setGuideBusy(false);
   };
   useEffect(() => {
-    if (visitable && !guide && !guideBusy && !gBusy && hasGuide()) makeGuide();
-  }, [visitable, gBusy, article]);
+    if (guided && !guide && !guideBusy && !gBusy && hasGuide()) makeGuide();
+  }, [guided, gBusy, article]);
 
   if (!place) return html`<div class="page"><${Empty} text="Lieu introuvable." /></div>`;
 
@@ -191,8 +192,8 @@ export default function PlaceView() {
             : html`<button class="act" onClick=${() => openDirections(place, mode)}><${Icon} name="diamond-turn-right" /><span>Y aller</span></button>`}
         </div>`}
 
-    ${visitable
-      ? html`<div class="row between"><${Subtitle}>Guide de visite</${Subtitle}>
+    ${guided
+      ? html`<div class="row between"><${Subtitle}>${guideTitle(place)}</${Subtitle}>
             ${guide && !guideBusy ? html`<button class="linkbtn" onClick=${() => makeGuide(true)}><${Icon} name="rotate" /> Refaire</button>` : null}</div>
           ${guide
             ? html`<${Card} cls="guide">${md(guide)}</${Card}>`
@@ -200,7 +201,7 @@ export default function PlaceView() {
               ? html`<${Card} cls="guide"><div class="muted small mb"><${Icon} name="wand-magic-sparkles" /> Rédaction du guide…</div><div class="skeleton mb"></div><div class="skeleton mb" style="width:85%"></div><div class="skeleton" style="width:70%"></div></${Card}>`
               : hasGuide()
                 ? html`<${Card}><div class="small">${guideErr ? `Guide indisponible (${guideErr}).` : ''}</div><${Button} small title="Écrire le guide" icon="wand-magic-sparkles" onClick=${() => makeGuide(true)} /></${Card}>`
-                : html`<${Card} onClick=${() => go('reglages')}><div class="row"><${Icon} name="wand-magic-sparkles" style="color:var(--navy)" /><div class="grow small">Ajoutez une clé Gemini ou Groq (gratuites) dans Réglages pour obtenir un guide de visite détaillé : à ne pas manquer, avec votre fille, confort pour Marie…</div><${Icon} name="chevron-right" cls="muted" /></div></${Card}>`}`
+                : html`<${Card} onClick=${() => go('reglages')}><div class="row"><${Icon} name="wand-magic-sparkles" style="color:var(--navy)" /><div class="grow small">Ajoutez une clé Gemini ou Groq (gratuites) dans Réglages pour obtenir un guide détaillé de chaque lieu, adapté à votre famille.</div><${Icon} name="chevron-right" cls="muted" /></div></${Card}>`}`
       : null}
 
     <${Subtitle}>Y aller</${Subtitle}>
