@@ -1,34 +1,28 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0.6" y2="1">
-      <stop offset="0" stop-color="#FFC15E"/>
-      <stop offset=".55" stop-color="#FF7A59"/>
-      <stop offset="1" stop-color="#E8436E"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5FE0CD"/>
+      <stop offset=".62" stop-color="#16A9B4"/>
+      <stop offset="1" stop-color="#0B7F97"/>
     </linearGradient>
-    <linearGradient id="pin" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#FFFFFF"/>
-      <stop offset="1" stop-color="#FFEFE9"/>
+    <linearGradient id="sun" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFF6D6"/>
+      <stop offset="1" stop-color="#FFD98A"/>
     </linearGradient>
-    <filter id="sh" x="-30%" y="-30%" width="160%" height="160%">
-      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#9C1F45" flood-opacity=".35"/>
-    </filter>
+    <clipPath id="sky"><rect width="512" height="318"/></clipPath>
   </defs>
   <rect width="512" height="512" fill="url(#bg)"/>
-  <!-- soleil -->
-  <circle cx="370" cy="150" r="62" fill="#FFFFFF" fill-opacity=".22"/>
-  <circle cx="370" cy="150" r="40" fill="#FFFFFF" fill-opacity=".35"/>
-  <!-- collines -->
-  <path d="M0 420 C 110 360 200 400 290 372 C 380 344 440 360 512 340 V512 H0z" fill="#FFFFFF" fill-opacity=".16"/>
-  <path d="M0 462 C 120 420 240 452 340 430 C 420 412 470 420 512 410 V512 H0z" fill="#FFFFFF" fill-opacity=".14"/>
-  <!-- trajet -->
-  <path d="M86 404 C 130 330 170 330 200 352" fill="none" stroke="#FFFFFF" stroke-width="13" stroke-linecap="round" stroke-dasharray="1 28"/>
-  <!-- repère avec coeur -->
-  <g transform="translate(256 98)" filter="url(#sh)">
-    <path d="M0 0c-66 0-118 50-118 114 0 84 118 196 118 196s118-112 118-196C118 50 66 0 0 0z" fill="url(#pin)"/>
-    <path d="M0 160c-6-5-56-38-56-74 0-20 15-34 33-34 11 0 19 6 23 13 4-7 12-13 23-13 18 0 33 14 33 34 0 36-50 69-56 74z" fill="#F2556D"/>
+  <!-- soleil couchant sur l'horizon -->
+  <circle cx="256" cy="318" r="128" fill="url(#sun)" clip-path="url(#sky)"/>
+  <!-- vagues -->
+  <g fill="none" stroke="#FFFFFF" stroke-linecap="round" stroke-width="20">
+    <path d="M96 358c26 0 26 -18 52 -18s26 18 52 18 26 -18 52 -18 26 18 52 18 26 -18 52 -18 26 18 52 18"/>
+    <path d="M150 412c22 0 22 -15 44 -15s22 15 44 15 22 -15 44 -15 22 15 44 15 22 -15 44 -15" stroke-opacity=".7"/>
   </g>
-  <!-- avion -->
-  <g transform="translate(98 112) rotate(-30) scale(.78)" fill="#FFFFFF">
-    <path d="M-46 0c0-7 6-11 13-11h22l26-38h15l-12 38h28l11-14h11l-6 25 6 25h-11l-11-14h-28l12 38h-15l-26-38h-22c-7 0-13-4-13-11z"/>
+  <!-- avion en papier -->
+  <g transform="translate(330 120) rotate(-12)" fill="#FFFFFF">
+    <path d="M-62 6 L58 -40 L22 44 L2 18 Z"/>
+    <path d="M2 18 L58 -40 L-6 30 Z" fill="#DDF7F3"/>
   </g>
+  <path d="M190 150 q60 -60 120 -24" fill="none" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round" stroke-dasharray="2 22" opacity=".85"/>
 </svg>
