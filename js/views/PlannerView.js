@@ -1,9 +1,10 @@
 // Planning : boîte à idées partagée + programme jour par jour + optimisation du trajet.
-import { html, useState } from '../../vendor/preact.js';
+import { html, useEffect, useState } from '../../vendor/preact.js';
 import { useApp, go } from '../core/app.js';
 import { useCollection } from '../core/store.js';
 import { categoryById, CATEGORIES } from '../data/categories.js';
-import { tripDays, formatDay, todayIndex, formatShort } from '../lib/dates.js';
+import { tripDays, formatDay, todayIndex, formatShort, dayColor } from '../lib/dates.js';
+import { cityPhoto } from '../lib/photos.js';
 import { optimizeOrder, routeLength, formatDistance, familyWalkMinutes } from '../lib/geo.js';
 import { savePlace, reorder } from '../lib/trips.js';
 import { searchAddress } from '../lib/places.js';
@@ -20,6 +21,10 @@ export default function PlannerView() {
   const [text, setText] = useState('');
   const [cat, setCat] = useState('loisirs');
   const [busy, setBusy] = useState(false);
+  const [cover, setCover] = useState(null);
+  useEffect(() => {
+    if (trip?.city?.name) cityPhoto(trip.city.name).then(setCover);
+  }, [trip?.city?.name]);
 
   if (!trip) return html`<div class="page"><${Spinner} /></div>`;
   const days = tripDays(trip);
@@ -76,15 +81,18 @@ export default function PlannerView() {
   };
 
   return html`<div class="page">
-    <h2 class="title">${trip.name}</h2>
-    <div class="muted small">
-      ${trip.city?.name} · du ${formatShort(trip.startDate)} au ${formatShort(trip.endDate)}${trip.lodging ? ` · ${trip.lodging.name}` : ''}
+    <div class="cover" style=${cover ? `background-image:linear-gradient(180deg,rgba(0,0,0,0) 35%,rgba(0,0,0,.65)),url('${cover}')` : ''}>
+      <div class="cover-text">
+        <div class="cover-title">${trip.name}</div>
+        <div class="cover-sub">${trip.city?.name} · du ${formatShort(trip.startDate)} au ${formatShort(trip.endDate)} · ${places.length} lieux</div>
+        ${trip.lodging ? html`<div class="cover-sub"><${Icon} name="bed" /> ${trip.lodging.name}</div>` : null}
+      </div>
     </div>
     ${mode === 'firebase' && fromCache ? html`<div class="muted xs">Hors ligne : dernière copie enregistrée.</div>` : null}
 
     <div class="chips wrap" style="margin:12px 0">
       <${Chip} label=${`Idées (${ideas.length})`} icon="lightbulb" active=${sel === 0} onClick=${() => setSelected(0)} color="var(--warning)" />
-      ${days.map((d) => html`<${Chip} label=${`J${d.index} · ${formatDay(d.iso)}`} active=${sel === d.index} onClick=${() => setSelected(d.index)} color="var(--navy)" />`)}
+      ${days.map((d) => html`<${Chip} label=${`J${d.index} · ${formatDay(d.iso)}`} active=${sel === d.index} onClick=${() => setSelected(d.index)} color=${dayColor(d.index)} />`)}
     </div>
 
     ${sel === 0
@@ -108,7 +116,7 @@ export default function PlannerView() {
         <div class="row">
           <div class="thumb-wrap" onClick=${() => go('lieu', { place: p })} style="cursor:pointer">
             <${Thumb} place=${p} city=${trip.city?.name} />
-            ${sel ? html`<span class="num">${i + 1}</span>` : null}
+            ${sel ? html`<span class="num" style=${`background:${dayColor(sel)}`}>${i + 1}</span>` : null}
           </div>
           <div class="grow" onClick=${() => go('lieu', { place: p })} style="cursor:pointer;min-width:0">
             <div class=${`bold ${p.status === 'visited' ? 'strike' : ''}`}>${p.favorite ? '❤️ ' : ''}${p.name}</div>

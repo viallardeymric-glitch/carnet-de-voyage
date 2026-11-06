@@ -49,3 +49,7 @@ export function todayIndex(trip) {
   const today = toISO(new Date());
   return tripDays(trip).find((d) => d.iso === today)?.index ?? null;
 }
+
+// Une couleur par jour du séjour (carte, planning).
+const DAY_COLORS = ['#EF5B5B', '#3E7BFA', '#22B07D', '#A66BFF', '#FF8A3D', '#14B8C4', '#E5484D', '#D4A017'];
+export const dayColor = (day) => DAY_COLORS[(Math.max(1, day) - 1) % DAY_COLORS.length];

@@ -1,6 +1,7 @@
-// Photos des lieux (miniatures) depuis Wikipédia / Wikimedia Commons, gratuites et sans clé.
-// Ordre : Wikidata (photo officielle P18) → article Wikipédia lié → articles Wikipédia
-// situés à moins de 300 m dont le titre ressemble au nom du lieu → recherche par nom.
+// Photos des lieux (miniatures).
+// Ordre : Google Places si une clé Google est enregistrée (Réglages) → Wikidata (photo officielle)
+// → article Wikipédia lié → articles Wikipédia à moins de 300 m dont le titre ressemble au nom
+// → photos Wikimedia Commons prises sur place → recherche Wikipédia par nom.
 // Les résultats (y compris « pas de photo ») sont gardés sur le téléphone.
 import { ls } from '../core/config.js';
 
@@ -75,14 +76,53 @@ async function byName(lang, place, city, width) {
   return best(Object.values(d.query?.pages || {}), place.name, 0.6);
 }
 
+export const getGoogleKey = () => ls.get('googleKey', null);
+export function setGoogleKey(k) {
+  ls.set('googleKey', k || null);
+  // On oublie les « pas de photo » pour retenter avec Google.
+  for (let i = localStorage.length - 1; i >= 0; i--) {
+    const k2 = localStorage.key(i);
+    if (k2?.startsWith('cdv::photo:') && !JSON.parse(localStorage.getItem(k2) || '{}').url) localStorage.removeItem(k2);
+  }
+}
+
+// Google Places (API « New ») : une recherche texte près du lieu, puis l'URL de sa première photo.
+async function fromGoogle(key, place, city, width) {
+  const body = { textQuery: `${place.name}${city ? `, ${city}` : ''}`, maxResultCount: 1, languageCode: 'fr' };
+  if (place.lat != null) body.locationBias = { circle: { center: { latitude: place.lat, longitude: place.lon }, radius: 800 } };
+  const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': key, 'X-Goog-FieldMask': 'places.photos' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(res.status);
+  const d = await res.json();
+  const photo = d.places?.[0]?.photos?.[0]?.name;
+  return photo ? `https://places.googleapis.com/v1/${photo}/media?maxWidthPx=${width * 2}&key=${encodeURIComponent(key)}` : null;
+}
+
+// Photos déposées sur Wikimedia Commons à moins de 150 m, dont le nom de fichier ressemble au lieu.
+async function commonsNear(place, width) {
+  const d = await getJson(
+    `https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*&generator=geosearch&ggsnamespace=6&ggscoord=${place.lat}%7C${place.lon}&ggsradius=150&ggslimit=40&prop=imageinfo&iiprop=url&iiurlwidth=${width}`
+  );
+  const pages = Object.values(d.query?.pages || {})
+    .filter((p) => /\.(jpe?g|png|webp)$/i.test(p.title))
+    .map((p) => ({ title: p.title.replace(/^File:/, '').replace(/\.[a-z]+$/i, ''), index: p.index, thumbnail: { source: p.imageinfo?.[0]?.thumburl } }));
+  return best(pages, place.name, 0.5);
+}
+
 async function resolve(place, city, width) {
   const t = place.tags || {};
   const steps = [];
+  const gkey = getGoogleKey();
+  if (gkey) steps.push(() => fromGoogle(gkey, place, city, width));
   if (t.wikidata) steps.push(() => fromWikidata(t.wikidata, width));
   if (t.wikipedia) steps.push(() => fromWikipediaTag(t.wikipedia, width));
   if (place.lat != null && place.name) {
     steps.push(() => nearby('en', place, width));
     steps.push(() => nearby('fr', place, width));
+    steps.push(() => commonsNear(place, width));
   }
   if (place.name) {
     steps.push(() => byName('en', place, city, width));
@@ -137,4 +177,24 @@ export function findPhoto(place, { city, width = 240 } = {}) {
     });
   pending.set(key, job);
   return job;
+}
+
+// Grande photo de couverture d'une ville (article Wikipédia en français, sinon anglais).
+export async function cityPhoto(city, width = 900) {
+  if (!city) return null;
+  const key = `photo:city:${city}`;
+  const hit = ls.get(key);
+  if (hit && (hit.url || Date.now() - hit.at < WEEK)) return hit.url;
+  let url = null;
+  let failed = false;
+  for (const lang of ['fr', 'en']) {
+    try {
+      url = await fromWikipediaTag(`${lang}:${city}`, width);
+      if (url) break;
+    } catch {
+      failed = true;
+    }
+  }
+  if (url || !failed) ls.set(key, { url, at: Date.now() });
+  return url;
 }

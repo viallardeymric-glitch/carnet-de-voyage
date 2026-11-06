@@ -49,9 +49,10 @@ export default function TripsView() {
   };
 
   const save = async () => {
-    const s = frToISO(start);
-    const e = frToISO(end);
-    if (!city || !s || !e || e < s) return toast('Choisissez une ville et des dates JJ/MM/AAAA');
+    const s = /^\d{4}-\d{2}-\d{2}$/.test(start) ? start : frToISO(start || '');
+    const e = /^\d{4}-\d{2}-\d{2}$/.test(end) ? end : frToISO(end || '');
+    if (!city) return toast('Choisissez d’abord la destination');
+    if (!s || !e || e < s) return toast('Choisissez les dates d’arrivée et de départ');
     setBusy(true);
     const id = await createTrip({ name: name || `Voyage à ${city.name}`, city, startDate: s, endDate: e, lodging: lodging || null }, memberId);
     setBusy(false);
@@ -101,8 +102,10 @@ export default function TripsView() {
           </div>`}
     <${Subtitle}>2. Dates et nom</${Subtitle}>
     <div class="row">
-      <div class="grow"><${Input} label="Arrivée" placeholder="JJ/MM/AAAA" inputmode="numeric" value=${start} onInput=${setStart} /></div>
-      <div class="grow"><${Input} label="Départ" placeholder="JJ/MM/AAAA" inputmode="numeric" value=${end} onInput=${setEnd} /></div>
+      <label class="grow"><div class="muted small">Arrivée</div>
+        <input class="input" type="date" value=${start} min="2024-01-01" onInput=${(e) => (setStart(e.target.value), (!end || end < e.target.value) && setEnd(e.target.value))} /></label>
+      <label class="grow"><div class="muted small">Départ</div>
+        <input class="input" type="date" value=${end} min=${start || '2024-01-01'} onInput=${(e) => setEnd(e.target.value)} /></label>
     </div>
     <${Input} label="Nom du voyage (facultatif)" value=${name} onInput=${setName} />
     <${Subtitle}>3. Hébergement (facultatif)</${Subtitle}>

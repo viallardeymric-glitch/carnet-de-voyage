@@ -100,6 +100,6 @@ export default function AssistantView() {
           <${Button} title="Demander" icon="comments" variant="accent" onClick=${ask} loading=${thinking} />
           ${answer ? html`<div class="mt" style="white-space:pre-wrap">${answer}</div>` : null}
         </${Card}>`
-      : html`<div class="muted small">Optionnel : ajoutez une clé API Claude dans Réglages pour poser des questions libres. Les suggestions ci-dessus fonctionnent sans.</div>`}
+      : html`<div class="muted small">Optionnel : ajoutez une clé Gemini ou Groq (gratuites) dans Plus › Réglages pour poser des questions libres. Les suggestions ci-dessus fonctionnent sans.</div>`}
   </div>`;
 }

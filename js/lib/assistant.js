@@ -1,6 +1,6 @@
 // Assistant de suggestions.
 //  1) Mode « malin » sans IA : règles selon l'heure, la météo et les lieux proches.
-//  2) Mode IA (optionnel) : Claude, si une clé API a été saisie dans Réglages.
+//  2) Mode IA (optionnel) : Gemini, Groq ou Claude, selon les clés saisies dans Réglages.
 import { CLAUDE_MODEL, ls } from '../core/config.js';
 import { fetchPlaces } from './places.js';
 import { distanceMeters, familyWalkMinutes } from './geo.js';
@@ -63,19 +63,83 @@ export async function localSuggestions({ position, weather, ideas }) {
   };
 }
 
-export function getApiKey() {
-  return ls.get(AI_KEY);
+// Clés IA enregistrées sur ce téléphone : { gemini, groq, claude }. Gemini et Groq ont une offre gratuite.
+export const AI_PROVIDERS = [
+  { id: 'gemini', label: 'Gemini (Google)', hint: 'Gratuit : aistudio.google.com › Get API key', placeholder: 'AIza…' },
+  { id: 'groq', label: 'Groq', hint: 'Gratuit : console.groq.com › API Keys', placeholder: 'gsk_…' },
+  { id: 'claude', label: 'Claude', hint: 'Payant : console.anthropic.com', placeholder: 'sk-ant-…' },
+];
+export function getAiKeys() {
+  const keys = ls.get('ai_keys', {}) || {};
+  const legacy = ls.get(AI_KEY);
+  if (legacy && !keys.claude) keys.claude = legacy;
+  return keys;
 }
-export const setApiKey = (k) => ls.set(AI_KEY, k || null);
+export function setAiKey(provider, key) {
+  const keys = getAiKeys();
+  if (key) keys[provider] = key;
+  else delete keys[provider];
+  ls.set('ai_keys', keys);
+  if (provider === 'claude' && !key) ls.set(AI_KEY, null);
+}
+export const getApiKey = () => Object.values(getAiKeys()).find(Boolean) || null;
+export const setApiKey = (k) => setAiKey('claude', k);
 
-// Question libre à Claude avec le contexte du voyage.
-export async function askClaude({ question, context }) {
-  const key = getApiKey();
-  if (!key) throw new Error('Ajoutez une clé API Claude dans Réglages pour activer l\'IA.');
-  const system =
-    'Tu es un conseiller voyage chaleureux et rigoureux pour une famille : papa (Eymric), maman (Marie, enceinte, ' +
-    'rythme doux, pas d\'effort intense, accès médical rapide) et leur fille de 5 ans. ' +
-    'Réponds en français, en 5 à 8 lignes maximum, avec des suggestions concrètes, proches et adaptées à l\'heure et à la météo.';
+const SYSTEM =
+  'Tu es un conseiller voyage chaleureux et rigoureux pour une famille : papa (Eymric), maman (Marie, enceinte, ' +
+  "rythme doux, pas d'effort intense, accès médical rapide) et leur fille de 5 ans. " +
+  "Réponds en français, en 5 à 8 lignes maximum, avec des suggestions concrètes, proches et adaptées à l'heure et à la météo.";
+
+async function readError(res) {
+  const d = await res.json().catch(() => ({}));
+  return new Error(d?.error?.message || `Erreur ${res.status}`);
+}
+
+async function viaGemini(key, prompt) {
+  let last;
+  for (const model of ['gemini-flash-latest', 'gemini-2.5-flash']) {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: SYSTEM }] },
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: { maxOutputTokens: 800, temperature: 0.7 },
+      }),
+    });
+    if (res.ok) {
+      const d = await res.json();
+      return d.candidates?.[0]?.content?.parts?.map((x) => x.text).join('') || '';
+    }
+    last = await readError(res);
+    if (res.status !== 404) break;
+  }
+  throw last;
+}
+
+async function viaGroq(key, prompt) {
+  let last;
+  for (const model of ['openai/gpt-oss-120b', 'llama-3.3-70b-versatile']) {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model,
+        max_tokens: 800,
+        messages: [
+          { role: 'system', content: SYSTEM },
+          { role: 'user', content: prompt },
+        ],
+      }),
+    });
+    if (res.ok) return (await res.json()).choices?.[0]?.message?.content || '';
+    last = await readError(res);
+    if (res.status !== 404 && res.status !== 400) break;
+  }
+  throw last;
+}
+
+async function viaClaude(key, prompt) {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -84,14 +148,32 @@ export async function askClaude({ question, context }) {
       'anthropic-version': '2023-06-01',
       'anthropic-dangerous-direct-browser-access': 'true',
     },
-    body: JSON.stringify({
-      model: CLAUDE_MODEL,
-      max_tokens: 600,
-      system,
-      messages: [{ role: 'user', content: `Contexte : ${JSON.stringify(context)}\n\nQuestion : ${question}` }],
-    }),
+    body: JSON.stringify({ model: CLAUDE_MODEL, max_tokens: 600, system: SYSTEM, messages: [{ role: 'user', content: prompt }] }),
   });
+  if (!res.ok) throw await readError(res);
   const data = await res.json();
-  if (!res.ok) throw new Error(data?.error?.message || `Erreur ${res.status}`);
   return data.content?.filter((b) => b.type === 'text').map((b) => b.text).join('\n') || '';
 }
+
+// Question libre avec le contexte du voyage : Gemini, puis Groq, puis Claude (le suivant prend le relais
+// si le premier est indisponible ou a atteint son quota gratuit).
+export async function askAI({ question, context }) {
+  const keys = getAiKeys();
+  const order = [
+    ['gemini', viaGemini],
+    ['groq', viaGroq],
+    ['claude', viaClaude],
+  ].filter(([id]) => keys[id]);
+  if (!order.length) throw new Error("Ajoutez une clé Gemini ou Groq (gratuites) dans Réglages pour activer l'IA.");
+  const prompt = `Contexte : ${JSON.stringify(context)}\n\nQuestion : ${question}`;
+  let last;
+  for (const [id, fn] of order) {
+    try {
+      return await fn(keys[id], prompt);
+    } catch (e) {
+      last = e;
+    }
+  }
+  throw last;
+}
+export const askClaude = askAI;

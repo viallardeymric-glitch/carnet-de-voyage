@@ -3,7 +3,8 @@ import { useApp } from '../core/app.js';
 import { setFirebaseConfig, parseFirebaseConfig, inviteLink, setMembers, ls, THEMES, applyAppearance } from '../core/config.js';
 import { biometricsSupported, biometricsEnabled, enableBiometrics, disableBiometrics, resetPin } from '../core/lock.js';
 import { sharingEnabled, setSharingEnabled } from '../core/location.js';
-import { getApiKey, setApiKey } from '../lib/assistant.js';
+import { AI_PROVIDERS, getAiKeys, setAiKey } from '../lib/assistant.js';
+import { getGoogleKey, setGoogleKey } from '../lib/photos.js';
 import { store } from '../core/store.js';
 import { Card, Button, Chip, Subtitle, Switch, SafetyBox } from '../ui/components.js';
 import { confirm, toast } from '../ui/dialogs.js';
@@ -14,8 +15,11 @@ export default function SettingsView() {
   const [bioOn, setBioOn] = useState(biometricsEnabled());
   const [sharing, setSharing] = useState(sharingEnabled());
   const [cfgText, setCfgText] = useState('');
-  const [key, setKey] = useState('');
-  const [hasKey, setHasKey] = useState(!!getApiKey());
+  const [aiKeys, setAiKeys] = useState(getAiKeys());
+  const [aiDraft, setAiDraft] = useState({});
+  const saveAi = (id, v) => (setAiKey(id, v), setAiKeys(getAiKeys()), setAiDraft({ ...aiDraft, [id]: '' }));
+  const [gkey, setGkey] = useState('');
+  const [hasG, setHasG] = useState(!!getGoogleKey());
   const [names, setNames] = useState({ E: members.E.name, M: members.M.name });
   const [theme, setTheme] = useState(ls.get('theme', 'soleil'));
   const [scheme, setScheme] = useState(ls.get('scheme', 'auto'));
@@ -126,17 +130,38 @@ export default function SettingsView() {
 
     <${Subtitle}>Assistant IA (optionnel)</${Subtitle}>
     <${Card}>
-      <div class="muted small mb">${hasKey ? 'Une clé est enregistrée sur ce téléphone.' : 'Collez une clé API Claude (console.anthropic.com) pour activer les questions libres.'}</div>
-      <input class="input" type="password" placeholder="sk-ant-…" value=${key} onInput=${(e) => setKey(e.target.value)} autocomplete="off" />
+      <div class="muted small mb">Mettez Gemini et Groq : les deux sont gratuits, et si l'un atteint sa limite du jour, l'autre prend le relais automatiquement.</div>
+      ${AI_PROVIDERS.map(
+        (p) => html`<div class="ai-row">
+          <div class="row between">
+            <b>${p.label}</b>
+            ${aiKeys[p.id] ? html`<span class="ok-tag"><i class="fa-solid fa-circle-check"></i> Activée</span>` : html`<span class="muted xs">${p.hint}</span>`}
+          </div>
+          ${aiKeys[p.id]
+            ? html`<${Button} small variant="ghost" title="Retirer la clé" onClick=${() => saveAi(p.id, null)} />`
+            : html`<div class="row" style="margin-top:6px">
+                <input class="input grow" style="margin:0" type="password" placeholder=${p.placeholder} value=${aiDraft[p.id] || ''} onInput=${(e) => setAiDraft({ ...aiDraft, [p.id]: e.target.value })} autocomplete="off" />
+                <${Button} small title="OK" disabled=${!aiDraft[p.id]} onClick=${() => saveAi(p.id, aiDraft[p.id].trim())} />
+              </div>`}
+        </div>`
+      )}
+    </${Card}>
+
+    <${Subtitle}>Photos Google (optionnel)</${Subtitle}>
+    <${Card}>
+      <div class="muted small mb">${hasG
+        ? 'Une clé Google est enregistrée : les photos des lieux et des hôtels viennent d’abord de Google.'
+        : 'Sans clé, les photos viennent de Wikipédia. Avec une clé « Places API (New) » de Google Cloud, presque tous les lieux et hôtels ont une photo.'}</div>
+      <input class="input" type="password" placeholder="AIza…" value=${gkey} onInput=${(e) => setGkey(e.target.value)} autocomplete="off" />
       <div class="row">
-        <${Button} cls="grow" small title="Enregistrer" disabled=${!key} onClick=${() => (setApiKey(key.trim()), setKey(''), setHasKey(true))} />
-        ${hasKey ? html`<${Button} cls="grow" small variant="ghost" title="Supprimer" onClick=${() => (setApiKey(null), setHasKey(false))} />` : null}
+        <${Button} cls="grow" small title="Enregistrer" disabled=${!gkey} onClick=${() => (setGoogleKey(gkey.trim()), setGkey(''), setHasG(true), toast('Clé Google enregistrée'))} />
+        ${hasG ? html`<${Button} cls="grow" small variant="ghost" title="Supprimer" onClick=${() => (setGoogleKey(null), setHasG(false))} />` : null}
       </div>
     </${Card}>
 
     <${SafetyBox} title="Installer sur l'écran d'accueil" icon="mobile-screen">
       <p>Dans Safari : bouton Partager <b>⬆︎</b> › « Sur l'écran d'accueil ». L'app s'ouvre alors en plein écran, avec son icône, même hors-ligne.</p>
     </${SafetyBox}>
-    <div class="muted xs center">Carnet de Voyage · version 2.3</div>
+    <div class="muted xs center">Carnet de Voyage · version 3.0</div>
   </div>`;
 }

@@ -1,9 +1,9 @@
 // Service worker : l'app fonctionne hors-ligne (fichiers de l'app + fonds de carte déjà vus).
-const VERSION = 'cdv-v2.3.0';
+const VERSION = 'cdv-v3.0.1';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'icons/apple-touch-icon.png', 'icons/icon-192.png',
-  'vendor/preact.js', 'vendor/leaflet/leaflet.js', 'vendor/leaflet/leaflet.css',
+  'vendor/preact.js', 'vendor/maplibre/maplibre-gl.js', 'vendor/maplibre/maplibre-gl.css',
   'vendor/fontawesome/css/fontawesome.min.css', 'vendor/fontawesome/css/solid.min.css', 'vendor/fontawesome/css/regular.min.css',
   'vendor/fontawesome/webfonts/fa-solid-900.woff2', 'vendor/fontawesome/webfonts/fa-regular-400.woff2',
   'js/main.js', 'js/core/app.js', 'js/core/config.js', 'js/core/store.js', 'js/core/lock.js', 'js/core/vault.js', 'js/core/location.js',
@@ -18,7 +18,7 @@ const SHELL = [
 ];
 const LAZY = ['vendor/firebase.js', 'vendor/opening_hours.js'];
 const TILES = 'cdv-tiles';
-const MAX_TILES = 3000;
+const MAX_TILES = 4000;
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
@@ -45,8 +45,8 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET') return;
 
-  // Fonds de carte : cache d'abord, réseau ensuite (consultables hors-ligne).
-  if (url.hostname === 'tile.openstreetmap.org') {
+  // Carte 3D (style, tuiles, polices, icônes) : cache d'abord, réseau ensuite (consultables hors-ligne).
+  if (url.hostname === 'tiles.openfreemap.org') {
     e.respondWith(
       caches.open(TILES).then(async (c) => {
         const hit = await c.match(e.request);
