@@ -398,3 +398,4 @@ html, body { height: var(--app-h, 100%); overflow: hidden; background: var(--car
 .tripbar { background: var(--card); padding-bottom: 8px; box-shadow: 0 6px 18px rgba(0,0,0,.12); border-radius: 0 0 22px 22px; }
 .tripcard { box-shadow: none; padding-left: 0; padding-right: 0; }
 .content.full .map-top { top: calc(var(--safe-top) + 74px); }
+.ai-tag { display: inline-block; font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 8px; background: var(--soft); color: var(--navy); vertical-align: 2px; }
