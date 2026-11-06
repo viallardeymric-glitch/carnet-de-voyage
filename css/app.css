@@ -392,3 +392,5 @@ html, body { height: var(--app-h, 100%); overflow: hidden; background: var(--car
 .tabbar { background: var(--card); -webkit-backdrop-filter: none; backdrop-filter: none; }
 .overlay, .viewer { position: absolute; top: 0; left: 0; right: 0; bottom: auto; height: var(--app-h, 100%); }
 .toast { position: absolute; }
+/* v3.7 : barre de l'heure opaque → plus de contenu dessous, l'en-tête n'a plus besoin de marge haute */
+.hero-head { border-radius: 0 0 22px 22px; }

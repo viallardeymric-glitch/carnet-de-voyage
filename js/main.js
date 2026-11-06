@@ -194,10 +194,8 @@ function Shell({ route }) {
 // iPhone (app ouverte depuis l'écran d'accueil) : la hauteur annoncée oublie la barre d'état,
 // ce qui laisse une bande vide en bas. On cale l'app sur la vraie hauteur de l'écran.
 function fitViewport() {
-  const standalone = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
-  const portrait = innerHeight >= innerWidth;
-  const full = portrait ? Math.max(screen.height, screen.width) : Math.min(screen.height, screen.width);
-  const h = standalone && /iPhone|iPad|iPod/.test(navigator.userAgent) ? Math.max(full, innerHeight) : innerHeight;
+  // Barre de l'heure opaque : la page commence sous l'heure, sa hauteur est celle de la fenêtre.
+  const h = Math.max(innerHeight, document.documentElement.clientHeight || 0);
   document.documentElement.style.setProperty('--app-h', `${h}px`);
 }
 fitViewport();

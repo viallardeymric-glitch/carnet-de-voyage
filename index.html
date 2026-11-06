@@ -5,11 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Carnet de Voyage</title>
 <meta name="description" content="Notre carnet de voyage familial : carte, planning, billets, budget.">
-<meta name="theme-color" content="#0E9AA7">
 <!-- Installation sur l'écran d'accueil iPhone -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<!-- Barre de l'heure opaque (pas de flou iOS 26) : noire en mode sombre, claire sinon -->
+<script>
+  (function () {
+    var s = 'auto';
+    try { s = JSON.parse(localStorage.getItem('cdv::scheme')) || 'auto'; } catch (e) {}
+    var dark = s === 'dark' || (s === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+    document.write('<meta name="apple-mobile-web-app-status-bar-style" content="' + (dark ? 'black' : 'default') + '">');
+    document.write('<meta name="theme-color" content="' + (dark ? '#000000' : '#FFFFFF') + '">');
+  })();
+</script>
 <meta name="apple-mobile-web-app-title" content="Voyage">
 <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=4">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=4">

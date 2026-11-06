@@ -114,8 +114,7 @@ export function applyAppearance() {
   el.dataset.theme = theme;
   if (dark) el.dataset.dark = '1';
   else delete el.dataset.dark;
-  const t = THEMES.find((x) => x.id === theme) || THEMES[0];
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', t.colors[0]);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#000000' : '#FFFFFF');
 }
 export function watchAppearance() {
   applyAppearance();
