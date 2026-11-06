@@ -1,6 +1,6 @@
 import { html, useEffect, useState } from '../../vendor/preact.js';
 import { useApp } from '../core/app.js';
-import { getFirebaseConfig, setFirebaseConfig, parseFirebaseConfig, inviteLink, setMembers, ls } from '../core/config.js';
+import { setFirebaseConfig, parseFirebaseConfig, inviteLink, setMembers, ls, THEMES, applyAppearance } from '../core/config.js';
 import { biometricsSupported, biometricsEnabled, enableBiometrics, disableBiometrics, resetPin } from '../core/lock.js';
 import { sharingEnabled, setSharingEnabled } from '../core/location.js';
 import { getApiKey, setApiKey } from '../lib/assistant.js';
@@ -17,6 +17,10 @@ export default function SettingsView() {
   const [key, setKey] = useState('');
   const [hasKey, setHasKey] = useState(!!getApiKey());
   const [names, setNames] = useState({ E: members.E.name, M: members.M.name });
+  const [theme, setTheme] = useState(ls.get('theme', 'soleil'));
+  const [scheme, setScheme] = useState(ls.get('scheme', 'auto'));
+  const pickTheme = (id) => (ls.set('theme', id), setTheme(id), applyAppearance());
+  const pickScheme = (id) => (ls.set('scheme', id), setScheme(id), applyAppearance());
 
   useEffect(() => {
     biometricsSupported().then(setBioOk);
@@ -69,6 +73,21 @@ export default function SettingsView() {
   const row = (label, sub, control) => html`<div class="row" style="padding:8px 0"><div class="grow"><div class="bold">${label}</div>${sub ? html`<div class="muted xs">${sub}</div>` : null}</div>${control}</div>`;
 
   return html`<div class="page">
+    <${Subtitle}>Apparence</${Subtitle}>
+    <${Card}>
+      <div class="row" style="gap:18px;justify-content:center">
+        ${THEMES.map(
+          (t) => html`<div class="center" onClick=${() => pickTheme(t.id)} style="cursor:pointer">
+            <div class=${`swatch ${theme === t.id ? 'on' : ''}`} style=${`background:linear-gradient(135deg,${t.colors[0]},${t.colors[1]})`}></div>
+            <div class="xs mt">${t.label}</div>
+          </div>`
+        )}
+      </div>
+      <div class="chips mt" style="justify-content:center">
+        ${[['auto', 'Automatique'], ['light', 'Clair'], ['dark', 'Sombre']].map(([id, l]) => html`<${Chip} label=${l} active=${scheme === id} onClick=${() => pickScheme(id)} />`)}
+      </div>
+    </${Card}>
+
     <${Subtitle}>Profil</${Subtitle}>
     <${Card}>
       <div class="chips wrap mb">${Object.values(members).map((m) => html`<${Chip} label=${`Je suis ${m.name}`} active=${memberId === m.id} color=${m.color} onClick=${() => setMemberId(m.id)} />`)}</div>
@@ -118,6 +137,6 @@ export default function SettingsView() {
     <${SafetyBox} title="Installer sur l'écran d'accueil" icon="mobile-screen">
       <p>Dans Safari : bouton Partager <b>⬆︎</b> › « Sur l'écran d'accueil ». L'app s'ouvre alors en plein écran, avec son icône, même hors-ligne.</p>
     </${SafetyBox}>
-    <div class="muted xs center">Carnet de Voyage · version 2.1</div>
+    <div class="muted xs center">Carnet de Voyage · version 2.2</div>
   </div>`;
 }

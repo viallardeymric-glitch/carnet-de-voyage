@@ -83,8 +83,8 @@ export default function PlannerView() {
     ${mode === 'firebase' && fromCache ? html`<div class="muted xs">Hors ligne : dernière copie enregistrée.</div>` : null}
 
     <div class="chips wrap" style="margin:12px 0">
-      <${Chip} label=${`Idées (${ideas.length})`} icon="lightbulb" active=${sel === 0} onClick=${() => setSelected(0)} color="#E8A317" />
-      ${days.map((d) => html`<${Chip} label=${`J${d.index} · ${formatDay(d.iso)}`} active=${sel === d.index} onClick=${() => setSelected(d.index)} color="#002B49" />`)}
+      <${Chip} label=${`Idées (${ideas.length})`} icon="lightbulb" active=${sel === 0} onClick=${() => setSelected(0)} color="var(--warning)" />
+      ${days.map((d) => html`<${Chip} label=${`J${d.index} · ${formatDay(d.iso)}`} active=${sel === d.index} onClick=${() => setSelected(d.index)} color="var(--navy)" />`)}
     </div>
 
     ${sel === 0

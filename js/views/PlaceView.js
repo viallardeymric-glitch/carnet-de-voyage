@@ -62,8 +62,8 @@ export default function PlaceView() {
     <h2 class="title">${place.name}</h2>
     <div class="chips wrap mb">
       <${Chip} label=${cat.label} icon=${cat.icon} active color=${cat.color} />
-      ${open != null ? html`<${Chip} label=${open ? 'Ouvert' : 'Fermé'} icon="clock" active color=${open ? '#2E9E6A' : '#D64545'} />` : null}
-      ${place.day ? html`<${Chip} label=${`Jour ${place.day}`} icon="calendar-days" active color="#002B49" />` : null}
+      ${open != null ? html`<${Chip} label=${open ? 'Ouvert' : 'Fermé'} icon="clock" active color=${open ? 'var(--success)' : 'var(--danger)'} />` : null}
+      ${place.day ? html`<${Chip} label=${`Jour ${place.day}`} icon="calendar-days" active color="var(--navy)" />` : null}
       ${place.addedBy && members[place.addedBy] ? html`<${Chip} label=${`Ajouté par ${members[place.addedBy].name}`} />` : null}
     </div>
 

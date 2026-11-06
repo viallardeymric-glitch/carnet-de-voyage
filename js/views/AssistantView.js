@@ -64,7 +64,7 @@ export default function AssistantView() {
             <${Icon} name=${weather.icon} style="font-size:34px;color:var(--cyan)" />
             <div>
               <div style="font-size:22px;font-weight:800">${weather.temp}°C · ${weather.label}</div>
-              <div style="color:#CFE8F5">Min ${weather.min}° / max ${weather.max}°${weather.rainChance != null ? ` · pluie ${weather.rainChance} %` : ''}</div>
+              <div style="color:rgba(255,255,255,.85)">Min ${weather.min}° / max ${weather.max}°${weather.rainChance != null ? ` · pluie ${weather.rainChance} %` : ''}</div>
             </div>
           </div>
         </${Card}>`

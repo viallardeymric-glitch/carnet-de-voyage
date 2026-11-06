@@ -4,14 +4,14 @@ export const CATEGORIES = [
     id: 'restaurants',
     label: 'Restaurants',
     icon: 'utensils',
-    color: '#E8793A',
+    color: '#FF8A3D',
     query: ['nwr["amenity"~"^(restaurant|cafe|fast_food|ice_cream)$"]["name"]'],
   },
   {
     id: 'loisirs',
     label: 'Loisirs & enfants',
     icon: 'face-smile',
-    color: '#2E9E6A',
+    color: '#22B07D',
     query: [
       'nwr["leisure"~"^(park|playground|water_park|garden|indoor_play)$"]["name"]',
       'nwr["tourism"~"^(zoo|theme_park|aquarium)$"]["name"]',
@@ -22,7 +22,7 @@ export const CATEGORIES = [
     id: 'shopping',
     label: 'Shopping',
     icon: 'bag-shopping',
-    color: '#9B59B6',
+    color: '#A66BFF',
     query: [
       'nwr["shop"~"^(mall|department_store|toys|books|gift)$"]["name"]',
       'nwr["amenity"="marketplace"]["name"]',
@@ -32,7 +32,7 @@ export const CATEGORIES = [
     id: 'monuments',
     label: 'Monuments',
     icon: 'landmark',
-    color: '#C0392B',
+    color: '#E5484D',
     query: [
       'nwr["historic"~"^(monument|castle|memorial|fort|palace|church|cathedral)$"]["name"]',
       'nwr["tourism"~"^(attraction|viewpoint)$"]["name"]',
@@ -42,14 +42,14 @@ export const CATEGORIES = [
     id: 'musees',
     label: 'Musées',
     icon: 'palette',
-    color: '#2C6FB7',
+    color: '#3E7BFA',
     query: ['nwr["tourism"~"^(museum|gallery)$"]["name"]'],
   },
   {
     id: 'pluie',
     label: 'Abri pluie',
     icon: 'umbrella',
-    color: '#00A3E0',
+    color: '#14B8C4',
     query: [
       'nwr["tourism"~"^(museum|aquarium|gallery)$"]["name"]',
       'nwr["amenity"~"^(cinema|library|theatre)$"]["name"]',
@@ -61,7 +61,7 @@ export const CATEGORIES = [
     id: 'sante',
     label: 'Santé',
     icon: 'kit-medical',
-    color: '#D64545',
+    color: '#F04438',
     query: [
       'nwr["amenity"="hospital"]["name"]',
       'nwr["amenity"="pharmacy"]',
@@ -74,5 +74,5 @@ export const categoryById = (id) => CATEGORIES.find((c) => c.id === id) || CATEG
 
 export const STATUS = {
   todo: { label: 'À faire', icon: 'circle', color: '#6B7480' },
-  visited: { label: 'Visité', icon: 'circle-check', color: '#2E9E6A' },
+  visited: { label: 'Visité', icon: 'circle-check', color: '#22B07D' },
 };

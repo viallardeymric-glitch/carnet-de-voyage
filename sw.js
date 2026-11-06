@@ -1,5 +1,5 @@
 // Service worker : l'app fonctionne hors-ligne (fichiers de l'app + fonds de carte déjà vus).
-const VERSION = 'cdv-v2.1.0';
+const VERSION = 'cdv-v2.2.0';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'icons/apple-touch-icon.png', 'icons/icon-192.png',
@@ -46,7 +46,7 @@ self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
 
   // Fonds de carte : cache d'abord, réseau ensuite (consultables hors-ligne).
-  if (url.hostname.endsWith('basemaps.cartocdn.com')) {
+  if (url.hostname === 'tile.openstreetmap.org') {
     e.respondWith(
       caches.open(TILES).then(async (c) => {
         const hit = await c.match(e.request);

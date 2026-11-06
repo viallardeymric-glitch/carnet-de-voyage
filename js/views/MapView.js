@@ -57,10 +57,9 @@ export default function MapView() {
   useEffect(() => {
     if (!el.current || map.current || !window.L) return;
     const m = L.map(el.current, { zoomControl: false, attributionControl: true }).setView(base ? [base.lat, base.lon] : [48.85, 2.35], 14);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
-      subdomains: 'abcd',
-      attribution: '© OpenStreetMap © CARTO',
+      attribution: '© OpenStreetMap',
     }).addTo(m);
     layers.current = {
       results: L.layerGroup().addTo(m),
@@ -115,7 +114,7 @@ export default function MapView() {
     const g = layers.current.lodging;
     if (!g) return;
     g.clearLayers();
-    if (trip?.lodging) L.marker([trip.lodging.lat, trip.lodging.lon], { icon: pinIcon('#002B49', 'bed') }).bindPopup(`<b>${esc(trip.lodging.name)}</b><br>Notre hébergement`).addTo(g);
+    if (trip?.lodging) L.marker([trip.lodging.lat, trip.lodging.lon], { icon: pinIcon('var(--navy)', 'bed') }).bindPopup(`<b>${esc(trip.lodging.name)}</b><br>Notre hébergement`).addTo(g);
   }, [trip?.lodging, ready]);
 
   // Résultats de recherche
@@ -138,7 +137,7 @@ export default function MapView() {
     g.clearLayers();
     visibleSaved.forEach((p) => {
       const cat = categoryById(p.category);
-      const color = p.favorite ? '#E2508C' : p.status === 'visited' ? '#2E9E6A' : cat.color;
+      const color = p.favorite ? 'var(--pink)' : p.status === 'visited' ? 'var(--success)' : cat.color;
       const icon = p.favorite ? 'heart' : p.status === 'visited' ? 'check' : cat.icon;
       L.marker([p.lat, p.lon], { icon: pinIcon(color, icon, p.day ? `J${p.day}` : ''), zIndexOffset: 500 })
         .on('click', () => go('lieu', { place: p }))
@@ -166,8 +165,8 @@ export default function MapView() {
     <div id="map" ref=${el}></div>
     <div class="map-top">
       <div class="chips">
-        <${Chip} label="Nos lieux" icon="star" active=${showSaved} onClick=${() => setShowSaved(!showSaved)} color="#002B49" />
-        <${Chip} label="Ouvert maintenant" icon="clock" active=${openOnly} onClick=${() => setOpenOnly(!openOnly)} color="#2E9E6A" />
+        <${Chip} label="Nos lieux" icon="star" active=${showSaved} onClick=${() => setShowSaved(!showSaved)} color="var(--navy)" />
+        <${Chip} label="Ouvert maintenant" icon="clock" active=${openOnly} onClick=${() => setOpenOnly(!openOnly)} color="var(--success)" />
         ${CATEGORIES.map((c) => html`<${Chip} label=${c.label} icon=${c.icon} active=${category === c.id} color=${c.color} onClick=${() => pickCategory(c.id)} />`)}
       </div>
       ${partner && gap != null

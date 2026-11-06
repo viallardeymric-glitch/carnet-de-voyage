@@ -93,3 +93,25 @@ export function consumeInvite() {
     return false;
   }
 }
+
+// Apparence : thème de couleurs + clair / sombre / automatique.
+export const THEMES = [
+  { id: 'soleil', label: 'Soleil', colors: ['#EF5B5B', '#FF9A56'] },
+  { id: 'lagon', label: 'Lagon', colors: ['#0E9AA7', '#38D3C0'] },
+  { id: 'marine', label: 'Marine', colors: ['#0B3D63', '#1B7FC0'] },
+];
+export function applyAppearance() {
+  const theme = ls.get('theme', 'soleil');
+  const scheme = ls.get('scheme', 'auto');
+  const dark = scheme === 'dark' || (scheme === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+  const el = document.documentElement;
+  el.dataset.theme = theme;
+  if (dark) el.dataset.dark = '1';
+  else delete el.dataset.dark;
+  const t = THEMES.find((x) => x.id === theme) || THEMES[0];
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', t.colors[0]);
+}
+export function watchAppearance() {
+  applyAppearance();
+  matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', applyAppearance);
+}

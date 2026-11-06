@@ -146,7 +146,7 @@ export default function VaultView() {
           <div class="zone">${viewer.isPdf ? html`<iframe src=${viewer.url} title=${viewer.title}></iframe>` : html`<img src=${viewer.url} alt=${viewer.title} />`}</div>
           ${viewer.isImage ? html`<div class="center small" style="color:#555;padding:6px">Astuce : montez la luminosité pour scanner le QR code.</div>` : null}
           <div class="row" style="padding:10px 16px">
-            ${viewer.isPdf ? html`<a class="btn ghost grow" href=${viewer.url} target="_blank" style="color:#002B49"><${Icon} name="up-right-from-square" />Plein écran</a>` : null}
+            ${viewer.isPdf ? html`<a class="btn ghost grow" href=${viewer.url} target="_blank" style="color:var(--navy)"><${Icon} name="up-right-from-square" />Plein écran</a>` : null}
             <${Button} cls="grow" title="Fermer" icon="xmark" onClick=${close} />
           </div>
         </div>`

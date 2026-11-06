@@ -1,7 +1,7 @@
 // Point d'entrée : configuration → profil → connexion → code PIN → verrou → voyage → onglets.
 import { html, render, useState, useEffect, useMemo } from '../vendor/preact.js';
 import { initStore, auth, fb, useDoc } from './core/store.js';
-import { ls, getMembers, consumeInvite } from './core/config.js';
+import { ls, getMembers, consumeInvite, watchAppearance } from './core/config.js';
 import { hasPin, watchAutoLock } from './core/lock.js';
 import { persistStorage } from './core/vault.js';
 import { AppCtx, TABS, currentRoute, back, useApp } from './core/app.js';
@@ -26,7 +26,7 @@ import AssistantView from './views/AssistantView.js';
 import SettingsView from './views/SettingsView.js';
 
 const SCREENS = {
-  carte: { view: MapView, title: (t) => t?.city?.name || 'Carte', full: true },
+  carte: { view: MapView, title: (t) => t?.city?.name || 'Carte' },
   planning: { view: PlannerView, title: () => 'Planning' },
   coffre: { view: VaultView, title: () => 'Coffre-fort' },
   budget: { view: BudgetView, title: () => 'Budget' },
@@ -114,12 +114,10 @@ function Shell({ route }) {
   const View = s.view;
   const showTabs = !!tripId;
   return html`
-    ${!s.full || !showTabs
-      ? html`<header class="header">
-          ${s.sub && tripId ? html`<button class="back" onClick=${back} aria-label="Retour"><${Icon} name="chevron-left" /></button>` : null}
-          <h1>${s.title(trip)}</h1>
-        </header>`
-      : html`<div style="height:var(--safe-top);background:var(--header)"></div>`}
+    <header class="header">
+      ${s.sub && tripId ? html`<button class="back" onClick=${back} aria-label="Retour"><${Icon} name="chevron-left" /></button>` : null}
+      <h1>${s.title(trip)}</h1>
+    </header>
     <main class="content" key=${route}><${View} /></main>
     ${showTabs
       ? html`<nav class="tabbar">
@@ -135,6 +133,7 @@ function Shell({ route }) {
 
 // Démarrage
 (async () => {
+  watchAppearance();
   if (consumeInvite()) setTimeout(() => toast('Configuration de synchronisation reçue ✓'), 600);
   let mode;
   try {
