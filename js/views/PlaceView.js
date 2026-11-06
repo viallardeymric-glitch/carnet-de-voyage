@@ -5,6 +5,7 @@ import { useCollection } from '../core/store.js';
 import { getPosition } from '../core/location.js';
 import { categoryById } from '../data/categories.js';
 import { fetchWikiSummary } from '../lib/places.js';
+import { findPhoto } from '../lib/photos.js';
 import { isOpenNow, loadOpeningHours } from '../lib/openNow.js';
 import { distanceMeters, formatDistance, familyWalkMinutes } from '../lib/geo.js';
 import { MODES, openDirections, reviewsUrl, tripadvisorUrl } from '../lib/routing.js';
@@ -18,6 +19,7 @@ export default function PlaceView() {
   const { items: saved } = useCollection(path('places'));
   const initial = navState.place;
   const [wiki, setWiki] = useState(null);
+  const [photo, setPhoto] = useState(null);
   const [me, setMe] = useState(null);
   const [mode, setMode] = useState('walk');
   const [ohReady, setOhReady] = useState(false);
@@ -27,7 +29,11 @@ export default function PlaceView() {
 
   useEffect(() => {
     if (!place) return;
-    fetchWikiSummary(place.tags).then(setWiki);
+    setPhoto(null);
+    fetchWikiSummary(place.tags).then((w) => {
+      setWiki(w);
+      if (!w?.image) findPhoto(place, { city: trip?.city?.name, width: 800 }).then(setPhoto);
+    });
     getPosition().then(setMe);
     if (place.tags?.opening_hours) loadOpeningHours().then(() => setOhReady(true));
   }, [initial]);
@@ -58,7 +64,7 @@ export default function PlaceView() {
   </a>`;
 
   return html`<div class="page">
-    ${wiki?.image ? html`<img src=${wiki.image} class="photo" style="height:200px" alt="" />` : null}
+    ${wiki?.image || photo ? html`<img src=${wiki?.image || photo} class="photo" style="height:210px" alt="" />` : null}
     <h2 class="title">${place.name}</h2>
     <div class="chips wrap mb">
       <${Chip} label=${cat.label} icon=${cat.icon} active color=${cat.color} />

@@ -1,11 +1,11 @@
-// Budget partagé : dépenses à deux, « qui doit combien à qui », convertisseur de devises.
+// Budget commun de la famille : dépenses partagées, budget prévu, convertisseur de devises.
 import { html, useEffect, useState } from '../../vendor/preact.js';
 import { useApp } from '../core/app.js';
 import { store, useCollection } from '../core/store.js';
 import { getRates, convert, formatMoney } from '../lib/currency.js';
-import { toISO, formatDay } from '../lib/dates.js';
-import { Card, Button, Chip, Icon, Subtitle, Empty, MemberBadge } from '../ui/components.js';
-import { confirm, toast } from '../ui/dialogs.js';
+import { toISO, formatDay, tripDays } from '../lib/dates.js';
+import { Card, Button, Chip, Icon, Subtitle, Empty } from '../ui/components.js';
+import { confirm, toast, prompt } from '../ui/dialogs.js';
 
 const CATS = [
   { id: 'repas', label: 'Repas', icon: 'utensils' },
@@ -19,22 +19,8 @@ const CATS = [
 ];
 const catOf = (id) => CATS.find((c) => c.id === id) || CATS[CATS.length - 1];
 
-// Positif = on doit de l'argent à cette personne.
-export function computeBalance(expenses) {
-  const net = { E: 0, M: 0 };
-  for (const e of expenses) {
-    const v = Number(e.amountEur) || 0;
-    net[e.paidBy] += v;
-    if (e.forWhom === 'both') {
-      net.E -= v / 2;
-      net.M -= v / 2;
-    } else net[e.forWhom] -= v;
-  }
-  return net;
-}
-
 export default function BudgetView() {
-  const { trip, path, memberId, members } = useApp();
+  const { trip, tripId, path, memberId } = useApp();
   const { items: expenses } = useCollection(path('expenses'), (a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
   const local = trip?.city?.currency || 'EUR';
   const [rates, setRates] = useState({ rates: { EUR: 1 } });
@@ -42,8 +28,6 @@ export default function BudgetView() {
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState(null);
   const [label, setLabel] = useState('');
-  const [paidBy, setPaidBy] = useState(memberId);
-  const [forWhom, setForWhom] = useState('both');
   const [cat, setCat] = useState('repas');
   const [convAmount, setConvAmount] = useState('10');
   const [toEur, setToEur] = useState(true);
@@ -63,8 +47,6 @@ export default function BudgetView() {
       amount: value,
       currency: cur,
       amountEur: Math.round(eur * 100) / 100,
-      paidBy,
-      forWhom,
       category: cat,
       date: toISO(new Date()),
       createdBy: memberId,
@@ -75,20 +57,38 @@ export default function BudgetView() {
     setAdding(false);
   };
 
-  const net = computeBalance(expenses);
   const total = expenses.reduce((s, e) => s + (Number(e.amountEur) || 0), 0);
-  const debtor = net.E < -0.005 ? 'E' : net.M < -0.005 ? 'M' : null;
+  const planned = Number(trip?.budget) || 0;
+  const nDays = tripDays(trip).length || 1;
+  const spentDays = new Set(expenses.map((e) => e.date).filter(Boolean)).size || 1;
+  const byDay = [];
+  for (const e of expenses) {
+    const last = byDay[byDay.length - 1];
+    if (last && last.date === e.date) last.items.push(e);
+    else byDay.push({ date: e.date, items: [e] });
+  }
+  const setBudget = async () => {
+    const v = await prompt('Budget prévu', 'Montant total en euros pour tout le séjour (laisser vide pour enlever).', planned ? String(planned) : '');
+    if (v == null) return;
+    const n = Number(String(v).replace(/\s/g, '').replace(',', '.'));
+    await store.update(`trips/${tripId}`, { budget: n > 0 ? Math.round(n) : null });
+  };
   const byCat = CATS.map((c) => ({ ...c, sum: expenses.filter((e) => e.category === c.id).reduce((s, e) => s + (Number(e.amountEur) || 0), 0) })).filter((c) => c.sum > 0);
   const convValue = Number(String(convAmount).replace(',', '.')) || 0;
   const converted = toEur ? convert(convValue, local, 'EUR', rates.rates) : convert(convValue, 'EUR', local, rates.rates);
 
   return html`<div class="page">
     <${Card} cls="hero">
-      <div class="label">TOTAL DÉPENSÉ</div>
+      <div class="label">DÉPENSES COMMUNES</div>
       <div class="big">${formatMoney(total)}</div>
-      <div style="margin-top:6px">
-        ${debtor ? `${members[debtor].name} doit ${formatMoney(-net[debtor])} à ${members[debtor === 'E' ? 'M' : 'E'].name}` : 'Vous êtes quittes 🎉'}
-      </div>
+      ${planned
+        ? html`<div class="hero-bar"><div style=${`width:${Math.min(100, (total / planned) * 100)}%`}></div></div>
+            <div class="row between small" style="margin-top:6px">
+              <span>${total <= planned ? `Reste ${formatMoney(planned - total)}` : `Dépassé de ${formatMoney(total - planned)}`}</span>
+              <button class="hero-link" onClick=${setBudget}>sur ${formatMoney(planned)} prévus</button>
+            </div>`
+        : html`<button class="hero-link" style="margin-top:6px" onClick=${setBudget}><${Icon} name="bullseye" /> Fixer un budget pour le séjour</button>`}
+      ${total > 0 ? html`<div class="small" style="margin-top:4px;opacity:.9">≈ ${formatMoney(total / spentDays)} par jour${planned ? ` · prévu ${formatMoney(planned / nDays)} par jour` : ''}</div>` : null}
     </${Card}>
 
     ${local !== 'EUR'
@@ -113,20 +113,13 @@ export default function BudgetView() {
             ${[...new Set([local, 'EUR'])].map((c) => html`<${Chip} label=${c} active=${cur === c} onClick=${() => setCurrency(c)} />`)}
           </div>
           <input class="input mt" placeholder="Libellé (facultatif)" value=${label} onInput=${(e) => setLabel(e.target.value)} />
-          <div class="chips wrap">${CATS.map((c) => html`<${Chip} label=${c.label} icon=${c.icon} active=${cat === c.id} onClick=${() => setCat(c.id)} />`)}</div>
-          <div class="muted small mt">Payé par</div>
-          <div class="chips mt">${Object.values(members).map((m) => html`<${Chip} label=${m.name} active=${paidBy === m.id} color=${m.color} onClick=${() => setPaidBy(m.id)} />`)}</div>
-          <div class="muted small mt">Pour</div>
-          <div class="chips mt mb">
-            <${Chip} label="Commun (50/50)" active=${forWhom === 'both'} onClick=${() => setForWhom('both')} />
-            ${Object.values(members).map((m) => html`<${Chip} label=${m.name} active=${forWhom === m.id} color=${m.color} onClick=${() => setForWhom(m.id)} />`)}
-          </div>
+          <div class="chips wrap mb">${CATS.map((c) => html`<${Chip} label=${c.label} icon=${c.icon} active=${cat === c.id} onClick=${() => setCat(c.id)} />`)}</div>
           <div class="row">
             <${Button} cls="grow" title="Enregistrer" icon="check" onClick=${add} />
             <${Button} cls="grow" title="Annuler" variant="ghost" onClick=${() => setAdding(false)} />
           </div>
         </${Card}>`
-      : html`<${Button} title="Ajouter une dépense" icon="plus" variant="accent" onClick=${() => (setPaidBy(memberId), setAdding(true))} />`}
+      : html`<${Button} title="Ajouter une dépense" icon="plus" variant="accent" onClick=${() => setAdding(true)} />`}
 
     ${byCat.length
       ? html`<${Subtitle}>Par catégorie</${Subtitle}>
@@ -142,24 +135,26 @@ export default function BudgetView() {
 
     <${Subtitle}>Dépenses</${Subtitle}>
     ${expenses.length === 0 ? html`<${Empty} icon="wallet" text="Aucune dépense enregistrée." />` : null}
-    ${expenses.map(
-      (e) => html`<${Card} style="padding:10px 12px">
-        <div class="row">
-          <${Icon} name=${catOf(e.category).icon} style="color:var(--cyan);width:22px;text-align:center" />
-          <div class="grow">
-            <div class="bold">${e.label}</div>
-            <div class="muted xs">${e.date ? formatDay(e.date) : ''} · ${e.forWhom === 'both' ? 'commun' : `pour ${members[e.forWhom]?.name}`}</div>
-          </div>
-          <div style="text-align:right">
-            <div class="bold">${formatMoney(e.amount, e.currency)}</div>
-            ${e.currency !== 'EUR' ? html`<div class="muted xs">${formatMoney(e.amountEur)}</div>` : null}
-          </div>
-          ${members[e.paidBy] ? html`<${MemberBadge} member=${members[e.paidBy]} size=${24} />` : null}
-          <button class="iconbtn" onClick=${async () => (await confirm('Supprimer cette dépense ?', e.label, 'Supprimer')) && store.remove(`${path('expenses')}/${e.id}`)}>
-            <${Icon} name="trash-can" />
-          </button>
-        </div>
-      </${Card}>`
+    ${byDay.map(
+      (g) => html`<div class="muted xs bold" style="margin:10px 4px 6px;text-transform:uppercase;letter-spacing:.04em">${g.date ? formatDay(g.date) : 'Sans date'}</div>
+        ${g.items.map(
+          (e) => html`<${Card} style="padding:10px 12px">
+            <div class="row">
+              <span class="cat-dot"><${Icon} name=${catOf(e.category).icon} /></span>
+              <div class="grow" style="min-width:0">
+                <div class="bold">${e.label}</div>
+                <div class="muted xs">${catOf(e.category).label}</div>
+              </div>
+              <div style="text-align:right">
+                <div class="bold">${formatMoney(e.amount, e.currency)}</div>
+                ${e.currency !== 'EUR' ? html`<div class="muted xs">${formatMoney(e.amountEur)}</div>` : null}
+              </div>
+              <button class="iconbtn" onClick=${async () => (await confirm('Supprimer cette dépense ?', e.label, 'Supprimer')) && store.remove(`${path('expenses')}/${e.id}`)}>
+                <${Icon} name="trash-can" />
+              </button>
+            </div>
+          </${Card}>`
+        )}`
     )}
   </div>`;
 }

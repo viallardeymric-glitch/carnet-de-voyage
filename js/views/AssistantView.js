@@ -8,7 +8,7 @@ import { localSuggestions, askClaude, getApiKey, momentOfDay } from '../lib/assi
 import { savePlace } from '../lib/trips.js';
 import { categoryById } from '../data/categories.js';
 import { formatDistance } from '../lib/geo.js';
-import { Card, Button, Icon, Subtitle, Spinner } from '../ui/components.js';
+import { Card, Button, Icon, Subtitle, Spinner, Thumb } from '../ui/components.js';
 import { toast } from '../ui/dialogs.js';
 
 export default function AssistantView() {
@@ -75,7 +75,7 @@ export default function AssistantView() {
           ${data.ideasNear.length ? html`<${Subtitle}>De notre boîte à idées, tout près</${Subtitle}>` : null}
           ${data.ideasNear.map(
             (p) => html`<${Card} onClick=${() => go('lieu', { place: p })}>
-              <div class="row"><${Icon} name="lightbulb" style="color:var(--warning)" /><div class="grow bold">${p.name}</div><span class="muted small">≈ ${p.walk} min</span></div>
+              <div class="row"><${Thumb} place=${p} city=${trip?.city?.name} size=${48} /><div class="grow bold">${p.name}</div><span class="muted small">≈ ${p.walk} min</span></div>
             </${Card}>`
           )}
           <${Subtitle}>Suggestions · ${categoryById(data.category).label}</${Subtitle}>
@@ -84,7 +84,7 @@ export default function AssistantView() {
             const c = categoryById(p.category);
             return html`<${Card} onClick=${() => go('lieu', { place: p })}>
               <div class="row">
-                <${Icon} name=${c.icon} style=${`color:${c.color};width:22px`} />
+                <${Thumb} place=${p} city=${trip?.city?.name} size=${48} />
                 <div class="grow"><div class="bold">${p.name}</div><div class="muted small">${formatDistance(p.distance)} · ≈ ${p.walk} min à pied</div></div>
                 <button class="iconbtn" style="color:var(--cyan)" onClick=${(e) => (e.stopPropagation(), savePlace(tripId, p, {}, memberId), toast('Ajouté à la boîte à idées'))}><${Icon} name="plus" /></button>
               </div>

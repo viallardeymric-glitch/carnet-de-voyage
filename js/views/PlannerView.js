@@ -7,7 +7,7 @@ import { tripDays, formatDay, todayIndex, formatShort } from '../lib/dates.js';
 import { optimizeOrder, routeLength, formatDistance, familyWalkMinutes } from '../lib/geo.js';
 import { savePlace, reorder } from '../lib/trips.js';
 import { searchAddress } from '../lib/places.js';
-import { Card, Button, Chip, Icon, Subtitle, SafetyBox, Empty, Spinner } from '../ui/components.js';
+import { Card, Button, Chip, Icon, Subtitle, SafetyBox, Empty, Spinner, Thumb } from '../ui/components.js';
 import { actionSheet, toast } from '../ui/dialogs.js';
 
 const byOrder = (a, b) => (a.order ?? 0) - (b.order ?? 0);
@@ -106,8 +106,11 @@ export default function PlannerView() {
       const c = categoryById(p.category);
       return html`<${Card} style="padding:10px 12px">
         <div class="row">
-          ${sel ? html`<span class="num">${i + 1}</span>` : html`<${Icon} name=${c.icon} style=${`color:${c.color};width:22px;text-align:center`} />`}
-          <div class="grow" onClick=${() => go('lieu', { place: p })} style="cursor:pointer">
+          <div class="thumb-wrap" onClick=${() => go('lieu', { place: p })} style="cursor:pointer">
+            <${Thumb} place=${p} city=${trip.city?.name} />
+            ${sel ? html`<span class="num">${i + 1}</span>` : null}
+          </div>
+          <div class="grow" onClick=${() => go('lieu', { place: p })} style="cursor:pointer;min-width:0">
             <div class=${`bold ${p.status === 'visited' ? 'strike' : ''}`}>${p.favorite ? '❤️ ' : ''}${p.name}</div>
             <div class="muted xs">${c.label}${p.status === 'visited' ? ' · Visité' : ''}${p.lat == null ? ' · sans position' : ''}</div>
           </div>

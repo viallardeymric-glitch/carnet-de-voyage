@@ -194,3 +194,19 @@ html[data-dark] .input { background: #24272D; }
 html[data-dark] .leaflet-tile-pane { filter: brightness(.82) contrast(1.05) saturate(.9); }
 .swatch { width: 44px; height: 44px; border-radius: 50%; border: 3px solid transparent; cursor: pointer; }
 .swatch.on { border-color: var(--text); }
+
+/* Miniatures des lieux */
+.thumb { border-radius: 14px; object-fit: cover; flex-shrink: 0; display: block; background: var(--border); box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+.thumb-icon { display: inline-flex; align-items: center; justify-content: center; color: #fff;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--c) 75%, #fff), var(--c)); }
+.thumb-icon.loading { opacity: .55; }
+.place-row { display: flex; align-items: center; gap: 12px; }
+.thumb-wrap { position: relative; flex-shrink: 0; }
+.thumb-wrap .num { position: absolute; top: -6px; left: -6px; width: 22px; height: 22px; font-size: 12px; border: 2px solid var(--card, #fff); }
+
+/* Budget commun */
+.hero-bar { height: 8px; border-radius: 4px; background: rgba(255,255,255,.3); margin-top: 10px; overflow: hidden; }
+.hero-bar > div { height: 100%; background: #fff; border-radius: 4px; }
+.hero-link { background: none; border: 0; color: inherit; font: inherit; font-weight: 700; padding: 0; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.cat-dot { width: 36px; height: 36px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  background: color-mix(in srgb, var(--navy) 14%, transparent); color: var(--navy); }

@@ -1,6 +1,8 @@
 // Composants d'interface réutilisables.
 import { html, useState, useEffect } from '../../vendor/preact.js';
-import { setDialogHost } from './dialogs.js';
+import { setDialogHost, promptBox } from './dialogs.js';
+import { findPhoto, cachedPhoto } from '../lib/photos.js';
+import { categoryById } from '../data/categories.js';
 
 export const Icon = ({ name, style, cls = '' }) => html`<i class="fa-solid fa-${name} ${cls}" style=${style}></i>`;
 
@@ -62,8 +64,30 @@ export function DialogHost() {
     <div class="sheet" onClick=${(e) => e.stopPropagation()}>
       ${d.title ? html`<h3>${d.title}</h3>` : null}
       ${d.message ? html`<div class="muted small mb">${d.message}</div>` : null}
+      ${d.input
+        ? html`<input class="input" inputmode="decimal" autofocus value=${(promptBox.value = d.input.value)} onInput=${(e) => (promptBox.value = e.target.value)} />`
+        : null}
       ${d.options.map((o) => html`<button class=${`opt ${o.danger ? 'danger' : ''}`} onClick=${() => close(o.value)}>${o.label}</button>`)}
       <button class="opt cancel" onClick=${() => close(null)}>Annuler</button>
     </div>
   </div>`;
+}
+
+// Miniature d'un lieu : photo Wikipédia si on en trouve une, sinon pastille colorée de la catégorie.
+export function Thumb({ place, city, size = 58 }) {
+  const cat = categoryById(place?.category);
+  const [url, setUrl] = useState(() => (place ? cachedPhoto(place) : null));
+  const [broken, setBroken] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    setBroken(false);
+    const hit = place ? cachedPhoto(place) : null;
+    setUrl(hit);
+    if (place && hit === undefined) findPhoto(place, { city }).then((u) => alive && setUrl(u || null));
+    return () => (alive = false);
+  }, [place?.osmId, place?.id, place?.name]);
+  const box = `width:${size}px;height:${size}px;font-size:${Math.round(size * 0.38)}px;--c:${cat.color}`;
+  return url && !broken
+    ? html`<img class="thumb" src=${url} alt="" loading="lazy" style=${box} onError=${() => setBroken(true)} />`
+    : html`<div class=${`thumb thumb-icon ${url === undefined ? 'loading' : ''}`} style=${box}><${Icon} name=${cat.icon} /></div>`;
 }
