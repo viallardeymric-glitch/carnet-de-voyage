@@ -342,3 +342,34 @@ html[data-dark] .card .input { background: #24272D; }
 .linkbtn { background: none; border: 0; padding: 4px 0; color: var(--navy); font-weight: 700; font-size: 13px; cursor: pointer; display: inline-flex; gap: 5px; align-items: center; }
 .trav-ico { width: 36px; height: 36px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; background: var(--soft); color: var(--navy); flex-shrink: 0; }
 .day i.fa-solid { width: auto; height: auto; background: none; border-radius: 0; margin-right: 2px; }
+
+/* ===== En-tête moderne (v3.4) ===== */
+.hero-head { position: relative; z-index: 600; flex-shrink: 0; color: #fff; overflow: hidden;
+  padding: calc(var(--safe-top) + 8px) 18px 16px; border-radius: 0 0 26px 26px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--navy) 92%, transparent), color-mix(in srgb, var(--navy-2) 88%, transparent)), var(--cover, none) center/cover, var(--navy);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--navy) 28%, transparent); }
+.hero-head::before { content: ''; position: absolute; width: 220px; height: 220px; right: -60px; top: -90px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,255,255,.28), transparent 70%); pointer-events: none; }
+.hero-head::after { content: ''; position: absolute; width: 160px; height: 160px; left: -50px; bottom: -90px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,255,255,.16), transparent 70%); pointer-events: none; }
+.hh-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 34px; position: relative; z-index: 1; }
+.hh-trip { font-size: 12.5px; font-weight: 700; opacity: .92; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: rgba(255,255,255,.18); padding: 5px 11px; border-radius: 14px; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.hh-back { width: 34px; height: 34px; border-radius: 50%; border: 0; background: rgba(255,255,255,.22); color: #fff; font-size: 15px; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); cursor: pointer; }
+.hero-head h1 { position: relative; z-index: 1; margin: 6px 0 0; font-size: 28px; font-weight: 800; letter-spacing: -.6px; line-height: 1.1; }
+.hh-sub { position: relative; z-index: 1; font-size: 13px; font-weight: 600; opacity: .9; margin-top: 3px; }
+.avatars { display: flex; flex-shrink: 0; }
+.av { width: 30px; height: 30px; border-radius: 50%; border: 2px solid #fff; color: #fff; font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; margin-left: -8px; box-shadow: 0 2px 6px rgba(0,0,0,.2); }
+.av:first-child { margin-left: 0; }
+.av.me { z-index: 1; }
+/* Carte plein écran : le voyage flotte au-dessus */
+.content.full { overflow: hidden; }
+.tripbar { position: fixed; top: 0; left: 0; right: 0; z-index: 700; padding: calc(var(--safe-top) + 6px) 10px 10px; pointer-events: none;
+  background: linear-gradient(180deg, rgba(0,0,0,.38), rgba(0,0,0,0)); }
+.tripcard { pointer-events: auto; width: 100%; display: flex; align-items: center; gap: 10px; border: 0; text-align: left; cursor: pointer;
+  padding: 7px 10px 7px 7px; border-radius: 22px; background: var(--glass); -webkit-backdrop-filter: saturate(180%) blur(18px); backdrop-filter: saturate(180%) blur(18px); box-shadow: 0 6px 20px rgba(0,0,0,.18); color: var(--text); }
+.tripthumb { width: 40px; height: 40px; border-radius: 14px; flex-shrink: 0; background: linear-gradient(135deg, var(--navy), var(--navy-2)) center/cover; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 15px; }
+.tripthumb[style*="url"] i { display: none; }
+.tripinfo { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.tripinfo b { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tripinfo small { font-size: 12px; color: var(--navy); font-weight: 700; }
+.content.full .map-top { top: calc(var(--safe-top) + 66px); }

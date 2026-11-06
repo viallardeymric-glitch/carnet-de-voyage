@@ -1,5 +1,6 @@
 // Point d'entrée : configuration → profil → connexion → code PIN → verrou → voyage → onglets.
 import { useSharedKeys } from './core/sharedKeys.js';
+import { cityPhoto } from './lib/photos.js';
 import { html, render, useState, useEffect, useMemo } from '../vendor/preact.js';
 import { initStore, auth, fb, useDoc } from './core/store.js';
 import { ls, getMembers, consumeInvite, watchAppearance } from './core/config.js';
@@ -112,17 +113,71 @@ function App({ mode }) {
   return html`<${AppCtx.Provider} value=${ctx}>${screen}<${DialogHost} /></${AppCtx.Provider}>`;
 }
 
-function Shell({ route }) {
+// Compte à rebours / jour en cours du voyage.
+function tripMoment(trip) {
+  if (!trip?.startDate) return '';
+  const day = 86400000;
+  const today = new Date();
+  today.setHours(12, 0, 0, 0);
+  const start = new Date(`${trip.startDate}T12:00:00`);
+  const end = new Date(`${trip.endDate || trip.startDate}T12:00:00`);
+  const toStart = Math.round((start - today) / day);
+  if (toStart > 1) return `Départ dans ${toStart} jours`;
+  if (toStart === 1) return 'Départ demain !';
+  if (today <= end) return `Jour ${Math.round((today - start) / day) + 1} sur ${Math.round((end - start) / day) + 1}`;
+  return 'Voyage terminé';
+}
+
+function useCover(trip) {
+  const [cover, setCover] = useState(null);
+  useEffect(() => {
+    if (trip?.city?.name) cityPhoto(trip.city.name).then(setCover).catch(() => {});
+  }, [trip?.city?.name]);
+  return cover;
+}
+
+function Avatars() {
+  const { members, memberId } = useApp();
+  return html`<div class="avatars">
+    ${Object.values(members).map(
+      (m) => html`<span class=${`av ${m.id === memberId ? 'me' : ''}`} style=${`background:${m.color}`} title=${m.name}>${m.id}</span>`
+    )}
+  </div>`;
+}
+
+function TopBar({ route, s }) {
   const { trip, tripId } = useApp();
+  const cover = useCover(trip);
+  const moment = tripMoment(trip);
+  const back_ = s.sub && tripId;
+  if (route === 'carte')
+    return html`<div class="tripbar">
+      <button class="tripcard" onClick=${() => (location.hash = '#/voyages')}>
+        <span class="tripthumb" style=${cover ? `background-image:url('${cover}')` : ''}><${Icon} name="plane" /></span>
+        <span class="tripinfo"><b>${trip?.name || 'Mon voyage'}</b><small>${moment || trip?.city?.name || ''}</small></span>
+        <${Avatars} />
+      </button>
+    </div>`;
+  return html`<header class="hero-head" style=${cover ? `--cover:url('${cover}')` : ''}>
+    <div class="hh-top">
+      ${back_
+        ? html`<button class="hh-back" onClick=${back} aria-label="Retour"><${Icon} name="chevron-left" /></button>`
+        : html`<span class="hh-trip"><${Icon} name="location-dot" /> ${trip?.name || 'Carnet de Voyage'}</span>`}
+      ${tripId ? html`<${Avatars} />` : null}
+    </div>
+    <h1>${s.title(trip)}</h1>
+    ${!back_ && moment ? html`<div class="hh-sub">${moment}</div>` : null}
+  </header>`;
+}
+
+function Shell({ route }) {
+  const { tripId } = useApp();
   const s = SCREENS[route];
   const View = s.view;
   const showTabs = !!tripId;
   return html`
-    <header class="header">
-      ${s.sub && tripId ? html`<button class="back" onClick=${back} aria-label="Retour"><${Icon} name="chevron-left" /></button>` : null}
-      <h1>${s.title(trip)}</h1>
-    </header>
-    <main class="content" key=${route}><${View} /></main>
+    <${TopBar} route=${route} s=${s} />
+    <main class=${`content ${route === 'carte' ? 'full' : ''}`} key=${route}><${View} /></main>
     ${showTabs
       ? html`<nav class="tabbar">
           ${TABS.map(
