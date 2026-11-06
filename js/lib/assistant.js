@@ -3,6 +3,7 @@
 //  2) Mode IA (optionnel) : Gemini, Groq ou Claude, selon les clés saisies dans Réglages.
 import { CLAUDE_MODEL, ls } from '../core/config.js';
 import { fetchPlaces } from './places.js';
+import { hasGoogle, nearbyGoogle } from './google.js';
 import { distanceMeters, familyWalkMinutes } from './geo.js';
 
 export const AI_KEY = 'claude_api_key';
@@ -34,7 +35,8 @@ export async function localSuggestions({ position, weather, ideas }) {
 
   let nearby = [];
   try {
-    nearby = await fetchPlaces(category, position, 1200, 60);
+    const job = hasGoogle() ? nearbyGoogle(category, position, 1200).catch(() => fetchPlaces(category, position, 1200, 60)) : fetchPlaces(category, position, 1200, 60);
+    nearby = await Promise.race([job, new Promise((_, no) => setTimeout(() => no(new Error('lent')), 12000))]);
   } catch {
     nearby = [];
   }
@@ -91,6 +93,14 @@ const SYSTEM_BASE =
 const SYSTEM = SYSTEM_BASE;
 export const assistantSystem = (partyText) => `${SYSTEM_BASE} ${partyText || ''}`;
 
+// Délai maximum par fournisseur : passé ce temps, on passe au suivant au lieu de tourner sans fin.
+const timed = (ms) => {
+  const c = new AbortController();
+  setTimeout(() => c.abort(), ms);
+  return c.signal;
+};
+const AI_TIMEOUT = 25000;
+
 async function readError(res) {
   const d = await res.json().catch(() => ({}));
   return new Error(d?.error?.message || `Erreur ${res.status}`);
@@ -98,14 +108,15 @@ async function readError(res) {
 
 async function viaGemini(key, prompt, { system = SYSTEM, max = 800 } = {}) {
   let last;
-  for (const model of ['gemini-flash-latest', 'gemini-2.5-flash']) {
+  for (const model of ['gemini-2.5-flash', 'gemini-flash-latest']) {
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`, {
       method: 'POST',
+      signal: timed(AI_TIMEOUT),
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: system }] },
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: { maxOutputTokens: max + 2000, temperature: 0.6 },
+        generationConfig: { maxOutputTokens: max + 2000, temperature: 0.6, ...(model === 'gemini-2.5-flash' ? { thinkingConfig: { thinkingBudget: 0 } } : {}) },
       }),
     });
     if (res.ok) {
@@ -113,7 +124,7 @@ async function viaGemini(key, prompt, { system = SYSTEM, max = 800 } = {}) {
       return d.candidates?.[0]?.content?.parts?.map((x) => x.text).join('') || '';
     }
     last = await readError(res);
-    if (res.status !== 404) break;
+    if (res.status !== 404 && !(res.status === 400 && model === 'gemini-2.5-flash')) break;
   }
   throw last;
 }
@@ -123,6 +134,7 @@ async function viaGroq(key, prompt, { system = SYSTEM, max = 800 } = {}) {
   for (const model of ['openai/gpt-oss-120b', 'llama-3.3-70b-versatile']) {
     const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
+      signal: timed(AI_TIMEOUT),
       headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
       body: JSON.stringify({
         model,
@@ -143,6 +155,7 @@ async function viaGroq(key, prompt, { system = SYSTEM, max = 800 } = {}) {
 async function viaClaude(key, prompt, { system = SYSTEM, max = 800 } = {}) {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
+    signal: timed(AI_TIMEOUT),
     headers: {
       'content-type': 'application/json',
       'x-api-key': key,
@@ -174,7 +187,7 @@ export async function askAI({ question, context, system, max }) {
     try {
       return await fn(keys[id], prompt, { system: system || SYSTEM, max: max || 800 });
     } catch (e) {
-      last = e;
+      last = e.name === 'AbortError' ? new Error(`${id} ne répond pas (réseau lent ?). Réessayez.`) : e;
     }
   }
   throw last;

@@ -62,8 +62,11 @@ async function overpass(query) {
   let lastErr;
   for (const url of OVERPASS) {
     try {
+      const c = new AbortController();
+      setTimeout(() => c.abort(), 15000);
       const res = await fetch(url, {
         method: 'POST',
+        signal: c.signal,
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: `data=${encodeURIComponent(query)}`,
       });
