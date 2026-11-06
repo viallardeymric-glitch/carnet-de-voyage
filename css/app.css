@@ -394,3 +394,7 @@ html, body { height: var(--app-h, 100%); overflow: hidden; background: var(--car
 .toast { position: absolute; }
 /* v3.7 : barre de l'heure opaque → plus de contenu dessous, l'en-tête n'a plus besoin de marge haute */
 .hero-head { border-radius: 0 0 22px 22px; }
+/* Carte : tout le haut (sous l'heure et autour du bandeau du voyage) est uni → le flou d'iOS 26 n'a plus rien à flouter */
+.tripbar { background: var(--card); padding-bottom: 8px; box-shadow: 0 6px 18px rgba(0,0,0,.12); border-radius: 0 0 22px 22px; }
+.tripcard { box-shadow: none; padding-left: 0; padding-right: 0; }
+.content.full .map-top { top: calc(var(--safe-top) + 74px); }
