@@ -1,9 +1,8 @@
 /* Carnet de Voyage — charte marine #002B49 / cyan #00A3E0 / fond #F4F6F8 / texte #212529 */
-/* Thèmes : « soleil » (par défaut), « lagon », « marine ». Mode sombre via html[data-dark]. */
-:root, html[data-theme="soleil"] {
-  --navy: #EF5B5B; --navy-2: #FF9A56; --cyan: #F0643F; --soft: #FFF0EA;
-}
-html[data-theme="lagon"] { --navy: #0E9AA7; --navy-2: #38D3C0; --cyan: #0B8F9B; --soft: #E4F7F5; }
+/* Thèmes : « lagon » (par défaut), « rose », « soleil », « marine ». Mode sombre via html[data-dark]. */
+:root, html[data-theme="lagon"] { --navy: #0E9AA7; --navy-2: #38D3C0; --cyan: #0B8F9B; --soft: #E4F7F5; }
+html[data-theme="rose"] { --navy: #E0457B; --navy-2: #FF8DB4; --cyan: #D63A72; --soft: #FDEAF1; }
+html[data-theme="soleil"] { --navy: #EF5B5B; --navy-2: #FF9A56; --cyan: #F0643F; --soft: #FFF0EA; }
 html[data-theme="marine"] { --navy: #0B3D63; --navy-2: #1B7FC0; --cyan: #0A93D1; --soft: #E5F3FA; }
 :root {
   --pink: #E2508C; --success: #22A06B; --warning: #F2A20C; --danger: #E5484D;

@@ -96,12 +96,18 @@ export function consumeInvite() {
 
 // Apparence : thème de couleurs + clair / sombre / automatique.
 export const THEMES = [
-  { id: 'soleil', label: 'Soleil', colors: ['#EF5B5B', '#FF9A56'] },
   { id: 'lagon', label: 'Lagon', colors: ['#0E9AA7', '#38D3C0'] },
+  { id: 'rose', label: 'Rose', colors: ['#E0457B', '#FF8DB4'] },
+  { id: 'soleil', label: 'Soleil', colors: ['#EF5B5B', '#FF9A56'] },
   { id: 'marine', label: 'Marine', colors: ['#0B3D63', '#1B7FC0'] },
 ];
 export function applyAppearance() {
-  const theme = ls.get('theme', 'soleil');
+  // Lagon devient le thème de base (une seule fois : un choix fait ensuite est respecté).
+  if (ls.get('themeV', 0) < 2) {
+    ls.set('theme', 'lagon');
+    ls.set('themeV', 2);
+  }
+  const theme = ls.get('theme', 'lagon');
   const scheme = ls.get('scheme', 'auto');
   const dark = scheme === 'dark' || (scheme === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
   const el = document.documentElement;

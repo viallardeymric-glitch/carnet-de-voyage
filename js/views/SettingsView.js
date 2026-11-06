@@ -22,7 +22,7 @@ export default function SettingsView() {
   const [gkey, setGkey] = useState('');
   const [hasG, setHasG] = useState(!!getGoogleKey());
   const [names, setNames] = useState({ E: members.E.name, M: members.M.name });
-  const [theme, setTheme] = useState(ls.get('theme', 'soleil'));
+  const [theme, setTheme] = useState(ls.get('theme', 'lagon'));
   const [scheme, setScheme] = useState(ls.get('scheme', 'auto'));
   const pickTheme = (id) => (ls.set('theme', id), setTheme(id), applyAppearance());
   const pickScheme = (id) => (ls.set('scheme', id), setScheme(id), applyAppearance());
