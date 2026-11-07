@@ -6,7 +6,7 @@ import { categoryById, CATEGORIES } from '../data/categories.js';
 import { tripDays, formatDay, todayIndex, formatShort, dayColor } from '../lib/dates.js';
 import { cityPhoto } from '../lib/photos.js';
 import { optimizeOrder, routeLength, formatDistance, familyWalkMinutes } from '../lib/geo.js';
-import { savePlace, reorder } from '../lib/trips.js';
+import { savePlace, reorder, removePlace } from '../lib/trips.js';
 import { searchAddress } from '../lib/places.js';
 import { Card, Button, Chip, Icon, Subtitle, SafetyBox, Empty, Spinner, Thumb } from '../ui/components.js';
 import { actionSheet, toast, confirm } from '../ui/dialogs.js';
@@ -189,6 +189,8 @@ export default function PlannerView() {
             <${Icon} name=${p.status === 'visited' ? 'circle-check' : 'circle'} />
           </button>
           <button class="iconbtn" style="color:var(--cyan)" onClick=${() => moveTo(p)} aria-label="Déplacer"><${Icon} name="calendar-days" /></button>
+          <button class="iconbtn" style="color:var(--muted)" aria-label="Supprimer"
+            onClick=${async () => (await confirm(`Supprimer « ${p.name} » ?`, 'Le lieu sera retiré du voyage sur les deux téléphones.', 'Supprimer')) && (await removePlace(tripId, p.id), toast('Lieu supprimé'))}><${Icon} name="trash-can" /></button>
         </div>
       </${Card}>`;
     })}
