@@ -784,7 +784,7 @@ export default function MapView() {
                 <div class="small muted">${nextStep?.sub || ''}${nextStep?.d != null ? ` · à ${formatDistance(nextStep.d)}` : ''}</div>
               </div>
             </div>
-            <div class="tlines" style="margin-top:8px">${guide.route.parts.map((p) => (p.type === 'transit' ? html`<${LineBadge} p=${p} />` : html`<span class="walkbit"><${Icon} name="person-walking" />${p.min}</span>`))}</div>
+            <div class="tlines" style="margin-top:8px">${guide.route.parts.map((p) => (p.type === 'transit' ? html`<${LineBadge} p=${p} />` : html`<span class="walkbit"><${Icon} name="person-walking" />${p.min} min</span>`))}</div>
             <div class="row" style="gap:6px;margin-top:8px">
               ${me ? html`<button class=${`pill ${follow ? 'accent' : ''}`} onClick=${() => setFollow(!follow)}><${Icon} name="location-crosshairs" /> ${follow ? 'Je suis suivi' : 'Me suivre'}</button>` : null}
               <button class="pill" onClick=${endGuide}><${Icon} name="xmark" /> Terminer</button>

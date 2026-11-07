@@ -211,4 +211,15 @@ export async function searchPlaces(q, near) {
     .map((g) => ({ ...toPlace(g, categoryOf(g.primaryType)), address: g.formattedAddress || g.shortFormattedAddress || '' }));
 }
 
+// Décalage horaire actuel du lieu (minutes par rapport à UTC), pour convertir une heure locale.
+export async function utcOffsetOf(googleId) {
+  if (!googleId) return null;
+  try {
+    const d = await call(`places/${googleId}`, { fields: 'utcOffsetMinutes' });
+    return typeof d.utcOffsetMinutes === 'number' ? d.utcOffsetMinutes : null;
+  } catch {
+    return null;
+  }
+}
+
 export const PRICE = { PRICE_LEVEL_FREE: 'Gratuit', PRICE_LEVEL_INEXPENSIVE: '€', PRICE_LEVEL_MODERATE: '€€', PRICE_LEVEL_EXPENSIVE: '€€€', PRICE_LEVEL_VERY_EXPENSIVE: '€€€€' };

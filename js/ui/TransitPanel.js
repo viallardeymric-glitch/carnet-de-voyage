@@ -67,7 +67,7 @@ export default function TransitPanel({ origins = [], to, city, plansLinks = true
             (r, i) => html`<div class=${`troute ${open === i ? 'on' : ''}`} onClick=${() => setOpen(open === i ? -1 : i)}>
               <div class="row">
                 <div class="grow">
-                  <div class="tlines">${r.parts.map((p) => (p.type === 'transit' ? html`<${LineBadge} p=${p} />` : html`<span class="walkbit"><${Icon} name="person-walking" />${p.min}</span>`))}</div>
+                  <div class="tlines">${r.parts.map((p) => (p.type === 'transit' ? html`<${LineBadge} p=${p} />` : html`<span class="walkbit"><${Icon} name="person-walking" />${p.min} min</span>`))}</div>
                   <div class="small muted">${r.walkOnly ? 'À pied' : `${r.dep} → ${r.arr}`}${r.leaveIn != null && r.leaveIn >= 0 ? html` · <b style="color:var(--navy)">partir ${r.leaveIn <= 1 ? 'maintenant' : `dans ${r.leaveIn} min`}</b>` : ''}</div>
                 </div>
                 <div class="tmin"><b>${r.min}</b><small>min</small></div>

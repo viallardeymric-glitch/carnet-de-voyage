@@ -3,7 +3,7 @@ import { html, useState } from '../../vendor/preact.js';
 import { useApp, go } from '../core/app.js';
 import { useCollection, store } from '../core/store.js';
 import { searchCities, searchAddress } from '../lib/places.js';
-import { createTrip, createLondonTrip } from '../lib/trips.js';
+import { createTrip } from '../lib/trips.js';
 import { frToISO, formatShort } from '../lib/dates.js';
 import { Card, Button, Input, Icon, Subtitle, Empty } from '../ui/components.js';
 import { toast, confirm } from '../ui/dialogs.js';
@@ -45,15 +45,7 @@ export default function TripsView() {
     toast('Voyage supprimé');
   };
 
-  const london = async () => {
-    setBusy(true);
-    try {
-      choose(await createLondonTrip(memberId));
-    } catch (e) {
-      toast(e.message);
-    }
-    setBusy(false);
-  };
+
 
   const find = async (fn, q, set, extra) => {
     try {
@@ -94,9 +86,6 @@ export default function TripsView() {
           </div>
         </${Card}>`
       )}
-      ${!trips.some((x) => x.city?.countryCode === 'GB' && x.startDate === '2026-12-27')
-        ? html`<${Button} title="Créer « Noël à Londres » (27–30 déc. 2026)" icon="gift" variant="accent" onClick=${london} loading=${busy} />`
-        : null}
       <${Button} title="Nouveau voyage" icon="plus" onClick=${() => setCreating(true)} />
     </div>`;
 
@@ -128,7 +117,7 @@ export default function TripsView() {
     <div class="row">
       <label class="grow"><div class="muted small">Heure d'arrivée à l'hébergement</div>
         <input class="input" type="time" value=${arrival} onInput=${(e) => setArrival(e.target.value)} /></label>
-      <label class="grow"><div class="muted small">Heure de départ</div>
+      <label class="grow"><div class="muted small">Quitter l'hébergement à</div>
         <input class="input" type="time" value=${departure} onInput=${(e) => setDeparture(e.target.value)} /></label>
     </div>
     <div class="muted xs mb">Facultatif : l'IA ne prévoit rien avant votre arrivée ni après votre départ.</div>

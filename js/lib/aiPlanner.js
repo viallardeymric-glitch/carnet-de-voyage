@@ -7,6 +7,7 @@ import { ls } from '../core/config.js';
 import { hasGoogle, searchPlaces } from './google.js';
 import { searchAddress } from './places.js';
 import { savePlace } from './trips.js';
+import { legsText } from './arrival.js';
 import { store } from '../core/store.js';
 
 const CATS = ['monuments', 'musees', 'loisirs', 'restaurants', 'shopping', 'pluie'];
@@ -21,7 +22,7 @@ function context(trip, places) {
   const last = days.length;
   return `Destination : ${trip.city?.name} (${trip.city?.country}). Hébergement : ${trip.lodging?.name || 'non choisi'}${trip.lodging?.address ? `, ${trip.lodging.address}` : ''}.
 Jours : ${days.map((d) => `Jour ${d.index} = ${formatDay(d.iso)} ${d.iso}`).join(' ; ')}.
-${trip.arrivalTime ? `ARRIVÉE à l'hébergement le jour 1 à ${trip.arrivalTime} : aucune activité avant ${trip.arrivalTime} (prévois le temps de poser les valises), la première activité commence au plus tôt 30 à 60 min après, près de l'hébergement.\n` : 'Jour 1 = jour d’arrivée : commence tranquillement.\n'}${trip.departureTime ? `DÉPART le jour ${last} à ${trip.departureTime} : aucune activité après ${trip.departureTime} moins 1 h 30, rien de loin de l'hébergement ce jour-là.\n` : ''}Voyageurs : ${describeParty(party)}${ls.get('partyNotes', '') ? ` Notes : ${ls.get('partyNotes', '')}` : ''}
+${trip.arrivalTime ? `ARRIVÉE à l'hébergement le jour 1 à ${trip.arrivalTime} : aucune activité avant ${trip.arrivalTime} (prévois le temps de poser les valises), la première activité commence au plus tôt 30 à 60 min après, près de l'hébergement.\n` : 'Jour 1 = jour d’arrivée : commence tranquillement.\n'}${trip.departureTime ? `DÉPART le jour ${last} : il faut QUITTER l'hébergement à ${trip.departureTime} (bagages) : aucune activité qui finit après ${trip.departureTime} moins 30 min, rien de loin de l'hébergement ce jour-là.\n` : ''}${legsText(trip) ? `Transport : ${legsText(trip)} N'ajoute PAS le trajet aéroport / gare dans les activités (il est déjà prévu).\n` : ''}Voyageurs : ${describeParty(party)}${ls.get('partyNotes', '') ? ` Notes : ${ls.get('partyNotes', '')}` : ''}
 Idées déjà notées (réutilise-les en priorité avec leur id, surtout les favoris) : ${JSON.stringify(ideas).slice(0, 3000)}
 Règles : rythme adapté au groupe (enfants, grossesse : pauses, pas de longues marches, une pause repos l'après-midi si besoin), 2 à 4 activités par jour regroupées par quartier pour limiter les trajets, premier et dernier jour plus légers (arrivée / départ), tiens compte des jours fériés, fermetures (lundi / mardi pour certains musées) et de la saison (activité couverte prévue en cas de pluie), un repas conseillé par jour adapté aux enfants (indique-le comme un lieu, catégorie restaurants).`;
 }

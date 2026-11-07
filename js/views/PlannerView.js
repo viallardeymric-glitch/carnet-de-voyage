@@ -12,6 +12,8 @@ import { Card, Button, Chip, Icon, Subtitle, SafetyBox, Empty, Spinner, Thumb } 
 import { actionSheet, toast, confirm } from '../ui/dialogs.js';
 import { proposePlanning, applyPlanning, refinePlanning } from '../lib/aiPlanner.js';
 import { store } from '../core/store.js';
+import TimeField from '../ui/TimeField.js';
+import TravelLeg from '../ui/TravelLeg.js';
 import { hasAI } from '../lib/assistant.js';
 import { getParty } from '../lib/party.js';
 
@@ -21,26 +23,6 @@ const toMin = (t) => {
   return n ? +n.slice(0, 2) * 60 + +n.slice(3) : null;
 };
 
-// Champ heure fiable sur iPhone : la roue d'iOS envoie une valeur à chaque cran ; on n'enregistre
-// qu'à la fermeture (perte de focus), sinon la synchro réécrit le champ pendant qu'on le tourne.
-function TimeField({ value, onSave, cls = '', placeholder }) {
-  const v = normTime(value) || '';
-  const [draft, setDraft] = useState(v);
-  const [editing, setEditing] = useState(false);
-  useEffect(() => {
-    if (!editing) setDraft(v);
-  }, [v, editing]);
-  const commit = (e) => {
-    setEditing(false);
-    const n = normTime(e.target.value) || '';
-    if (n !== v) onSave(n || null);
-  };
-  return html`<span class=${`tfield ${cls}`}>
-    <input type="time" value=${draft} onFocus=${() => setEditing(true)} onInput=${(e) => setDraft(e.target.value)} onBlur=${commit}
-      onKeyDown=${(e) => e.key === 'Enter' && e.target.blur()} />
-    ${!draft && placeholder ? html`<span class="tph">${placeholder}</span>` : null}
-  </span>`;
-}
 
 export default function PlannerView() {
   const { trip, tripId, path, memberId, mode } = useApp();
@@ -218,7 +200,7 @@ export default function PlannerView() {
           <div class="muted small mb">Pour : ${getParty(trip).map((t) => `${t.name || { adulte: 'Adulte', enfant: 'Enfant', bebe: 'Bébé', chien: 'Chien', chat: 'Chat' }[t.kind] || ''}${t.kind === 'enfant' && t.age ? ` (${t.age} ans)` : ''}${t.pregnant ? ' 🤰' : ''}`).join(', ')} · <a href="#/voyageurs">modifier</a></div>
           <div class="timesrow">
             <label><span><${Icon} name="bed" /> Arrivée à l'hébergement (jour 1)</span><${TimeField} cls="input" value=${trip.arrivalTime} onSave=${(t) => setTripTime('arrivalTime', t)} placeholder="--:--" /></label>
-            <label><span><${Icon} name="suitcase-rolling" /> Départ (dernier jour)</span><${TimeField} cls="input" value=${trip.departureTime} onSave=${(t) => setTripTime('departureTime', t)} placeholder="--:--" /></label>
+            <label><span><${Icon} name="suitcase-rolling" /> Quitter l'hébergement (dernier jour)</span><${TimeField} cls="input" value=${trip.departureTime} onSave=${(t) => setTripTime('departureTime', t)} placeholder="--:--" /></label>
           </div>
           ${fromCurrent ? html`<div class="muted small mb">Voici votre planning actuel. Demandez juste ce qu’il faut changer : l’IA garde tout le reste, puis vous validez.</div>` : null}
           ${fromCurrent ? null : html`<textarea class="input" placeholder="Envies (facultatif) : ex. Harry Potter, marchés de Noël, pas de musée le dimanche…" value=${wishes} onInput=${(e) => setWishes(e.target.value)}></textarea>`}
@@ -265,8 +247,8 @@ export default function PlannerView() {
             <div class="subtitle">Jour ${sel} · ${formatDay(days[sel - 1].iso)}${trip.dayThemes?.[sel] ? ` — ${trip.dayThemes[sel]}` : ''}</div>
             ${list.length > 1 ? html`<${Button} small variant="accent" icon="route" title="Optimiser" onClick=${optimize} />` : null}
           </div>
-          ${sel === 1 ? html`<label class="arrival"><${Icon} name="bed" /><span class="grow">Arrivée à l'hébergement</span><${TimeField} value=${trip.arrivalTime} onSave=${(t) => setTripTime('arrivalTime', t)} placeholder="Heure ?" /></label>` : null}
-          ${sel === days.length ? html`<label class="arrival"><${Icon} name="suitcase-rolling" /><span class="grow">Départ</span><${TimeField} value=${trip.departureTime} onSave=${(t) => setTripTime('departureTime', t)} placeholder="Heure ?" /></label>` : null}
+          ${sel === 1 ? html`<${TravelLeg} trip=${trip} tripId=${tripId} dir="arrivee" key="arr" />` : null}
+          ${sel === days.length ? html`<${TravelLeg} trip=${trip} tripId=${tripId} dir="depart" key="dep" />` : null}
           ${(() => {
             const a = toMin(trip.arrivalTime);
             const d = toMin(trip.departureTime);
@@ -279,8 +261,8 @@ export default function PlannerView() {
             const arr = sel === 1 && a != null && bad.some((p) => toMin(p.time) < a);
             const q = arr
               ? `Nous arrivons à l'hébergement à ${trip.arrivalTime} le jour 1 : décale les activités du jour 1 après notre arrivée (allège le jour si besoin), ne change pas les autres jours.`
-              : `Nous partons à ${trip.departureTime} le dernier jour (jour ${days.length}) : adapte ce jour-là pour finir 1 h 30 avant, ne change pas les autres jours.`;
-            return html`<div class="timewarn"><${Icon} name="triangle-exclamation" /><span class="grow">${bad.map((p) => `${p.name} (${normTime(p.time)})`).join(', ')} : ${arr ? `avant votre arrivée à ${normTime(trip.arrivalTime)}` : `après votre départ à ${normTime(trip.departureTime)}`}.</span>
+              : `Nous devons quitter l'hébergement à ${trip.departureTime} le dernier jour (jour ${days.length}) : adapte ce jour-là pour finir 30 min avant, près de l'hébergement, ne change pas les autres jours.`;
+            return html`<div class="timewarn"><${Icon} name="triangle-exclamation" /><span class="grow">${bad.map((p) => `${p.name} (${normTime(p.time)})`).join(', ')} : ${arr ? `avant votre arrivée à ${normTime(trip.arrivalTime)}` : `après l’heure où quitter l’hébergement (${normTime(trip.departureTime)})`}.</span>
               <button onClick=${() => openAI(q)}><${Icon} name="wand-magic-sparkles" /> Ajuster avec l’IA</button></div>`;
           })()}
           ${list.length && start ? html`<div class="muted small mb">Boucle depuis l'hôtel : ${formatDistance(total)} à vol d'oiseau (≈ ${familyWalkMinutes(total)} min de marche).</div>` : null}
@@ -337,6 +319,5 @@ export default function PlannerView() {
         </${Card}>`
       : html`<${Button} title=${sel ? `Ajouter au jour ${sel}` : 'Nouvelle idée'} icon="plus" onClick=${() => setAdding(true)} />`}
 
-    ${trip.notes ? html`<${Card} style="margin-top:12px"><div class="row"><${Icon} name="circle-info" style="color:var(--cyan)" /><div class="grow small">${trip.notes}</div></div></${Card}>` : null}
   </div>`;
 }

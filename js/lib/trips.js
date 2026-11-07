@@ -1,7 +1,6 @@
 // Création d'un voyage et de son contenu de départ.
 import { store } from '../core/store.js';
 import { checklistTemplate } from '../data/checklistTemplate.js';
-import { LONDON_TRIP, LONDON_IDEAS } from '../data/londonSeed.js';
 
 export async function createTrip(data, memberId, ideas = []) {
   const id = await store.add('trips', { ...data, createdBy: memberId, createdAtMs: Date.now() });
@@ -23,8 +22,6 @@ export async function createTrip(data, memberId, ideas = []) {
   }
   return id;
 }
-
-export const createLondonTrip = (memberId) => createTrip(LONDON_TRIP, memberId, LONDON_IDEAS);
 
 // Lieux : boîte à idées / planning
 export async function savePlace(tripId, place, patch, memberId) {

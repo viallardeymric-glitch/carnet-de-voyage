@@ -10,7 +10,7 @@ const FIELDS = [
   'routes.duration', 'routes.distanceMeters', 'routes.localizedValues',
   'routes.legs.steps.travelMode', 'routes.legs.steps.staticDuration', 'routes.legs.steps.distanceMeters',
   'routes.legs.steps.navigationInstruction', 'routes.legs.steps.transitDetails', 'routes.legs.steps.localizedValues',
-  'routes.legs.steps.polyline', 'routes.legs.steps.startLocation',
+  'routes.legs.steps.polyline', 'routes.legs.steps.startLocation', 'routes.travelAdvisory.transitFare',
 ].join(',');
 
 // Décodage des tracés Google (« encoded polyline ») en [lon, lat].
@@ -34,11 +34,22 @@ export function decodePolyline(str = '') {
   return out;
 }
 
+// Tarif Google ({ currencyCode, units, nanos }) → « 12,40 £ ».
+function fareText(f) {
+  if (!f || (f.units == null && f.nanos == null)) return '';
+  const v = +(f.units || 0) + (f.nanos || 0) / 1e9;
+  try {
+    return v.toLocaleString('fr-FR', { style: 'currency', currency: f.currencyCode || 'EUR' });
+  } catch {
+    return `${v.toFixed(2)} ${f.currencyCode || ''}`;
+  }
+}
+
 const mins = (d) => Math.max(1, Math.round(parseInt(d || '0', 10) / 60));
 const hhmm = (iso) => (iso ? new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '');
 
 // Itinéraires en transports (jusqu'à 4 propositions), au départ de maintenant ou d'une heure donnée.
-export async function transitRoutes(from, to, when = null, travelMode = 'TRANSIT') {
+export async function transitRoutes(from, to, when = null, travelMode = 'TRANSIT', arriveBy = false) {
   const key = getGoogleKey();
   if (!key) throw Object.assign(new Error('no-key'), { code: 'no-key' });
   const res = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
@@ -50,7 +61,7 @@ export async function transitRoutes(from, to, when = null, travelMode = 'TRANSIT
       travelMode,
       computeAlternativeRoutes: travelMode === 'TRANSIT',
       languageCode: 'fr',
-      ...(when ? { departureTime: new Date(when).toISOString() } : {}),
+      ...(when ? { [arriveBy ? 'arrivalTime' : 'departureTime']: new Date(when).toISOString() } : {}),
     }),
   });
   if (!res.ok) {
@@ -105,6 +116,7 @@ export async function transitRoutes(from, to, when = null, travelMode = 'TRANSIT
       arr: lastT?.arr || '',
       leaveIn: firstT?.depAt ? Math.round((new Date(firstT.depAt) - Date.now()) / 60000) - (parts[0]?.type === 'walk' ? parts[0].min : 0) : null,
       walkOnly: !firstT,
+      fare: fareText(r.travelAdvisory?.transitFare),
     };
   });
 }
