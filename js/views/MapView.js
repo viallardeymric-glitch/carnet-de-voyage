@@ -12,6 +12,7 @@ import { fetchPlaces } from '../lib/places.js';
 import { nearbyGoogle, hasGoogle, searchPlaces, hotelsNear, PRICE } from '../lib/google.js';
 import { store } from '../core/store.js';
 import { searchAddress } from '../lib/places.js';
+import { cachedPhoto, findPhoto } from '../lib/photos.js';
 import TransitPanel, { LineBadge } from '../ui/TransitPanel.js';
 import { isOpenNow, loadOpeningHours } from '../lib/openNow.js';
 import { distanceMeters, formatDistance, familyWalkMinutes, bestCenter, circle } from '../lib/geo.js';
@@ -320,12 +321,18 @@ export default function MapView() {
     draw(
       'saved',
       visibleSaved.map((p) => {
-        if (p.day) {
-          const n = (plan[p.day] || []).indexOf(p) + 1;
-          return [el(`mk mk-num ${p.status === 'visited' ? 'done' : ''}`, `<span>${n || '•'}</span>`, `--c:${dayColor(p.day)}`), p.lon, p.lat, () => setSel(p)];
-        }
+        // Bulle photo flottante : la photo du lieu, cerclée de la couleur du jour, avec son numéro.
         const c = categoryById(p.category);
-        return [el('mk mk-pin', `<i class="fa-solid fa-${p.favorite ? 'heart' : c.icon}"></i>`, `--c:${p.favorite ? 'var(--pink)' : c.color}`), p.lon, p.lat, () => setSel(p)];
+        const color = p.day ? dayColor(p.day) : p.favorite ? 'var(--pink)' : c.color;
+        const n = p.day ? (plan[p.day] || []).indexOf(p) + 1 : 0;
+        const badge = p.day ? `<em>${n || '•'}</em>` : p.favorite ? '<em><i class="fa-solid fa-heart"></i></em>' : '';
+        const node = el(`mk-photo ${p.status === 'visited' ? 'done' : ''}`, `<span class="ph"><i class="fa-solid fa-${c.icon}"></i></span>${badge}`, `--c:${color}`);
+        const ph = node.querySelector('.ph');
+        const set = (url) => url && ((ph.style.backgroundImage = `url("${url}")`), ph.classList.add('has'));
+        const quick = cachedPhoto(p, 120);
+        if (quick) set(quick);
+        else findPhoto(p, { city: trip?.city?.name, width: 120 }).then(set).catch(() => {});
+        return [node, p.lon, p.lat, () => setSel(p)];
       })
     );
   }, [ready, visibleSaved, plan]);

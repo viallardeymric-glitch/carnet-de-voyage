@@ -434,3 +434,12 @@ html, body { height: var(--app-h, 100%); overflow: hidden; background: var(--car
 .hotelrow.on { background: var(--soft); padding: 9px 8px; }
 .rank { display: inline-block; background: var(--navy); color: #fff; border-radius: 7px; font-size: 11px; padding: 1px 6px; vertical-align: 1px; }
 .mk-hotel.on { transform: scale(1.25); z-index: 5; }
+/* Lieux du voyage : bulles photo flottantes sur la carte */
+.mk-photo { position: relative; width: 50px; height: 50px; transform: translateY(-30px); cursor: pointer; filter: drop-shadow(0 4px 8px rgba(0,0,0,.3)); transition: transform .15s; }
+.mk-photo::after { content: ''; position: absolute; left: 50%; bottom: -8px; width: 14px; height: 14px; background: var(--c); transform: translateX(-50%) rotate(45deg); border-radius: 0 0 3px 0; z-index: -1; }
+.mk-photo .ph { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; border-radius: 16px; border: 3px solid var(--c); background: var(--card) center/cover no-repeat; color: var(--c); font-size: 18px; box-sizing: border-box; overflow: hidden; }
+.mk-photo .ph.has i { display: none; }
+.mk-photo em { position: absolute; top: -8px; right: -8px; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 11px; background: var(--c); color: #fff; font-style: normal; font-weight: 800; font-size: 12px; display: flex; align-items: center; justify-content: center; border: 2px solid #fff; box-sizing: border-box; }
+.mk-photo em i { font-size: 10px; }
+.mk-photo.done .ph { filter: grayscale(.7); opacity: .85; }
+.mk-photo:active { transform: translateY(-30px) scale(1.12); }
