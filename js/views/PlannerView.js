@@ -9,7 +9,10 @@ import { optimizeOrder, routeLength, formatDistance, familyWalkMinutes } from '.
 import { savePlace, reorder } from '../lib/trips.js';
 import { searchAddress } from '../lib/places.js';
 import { Card, Button, Chip, Icon, Subtitle, SafetyBox, Empty, Spinner, Thumb } from '../ui/components.js';
-import { actionSheet, toast } from '../ui/dialogs.js';
+import { actionSheet, toast, confirm } from '../ui/dialogs.js';
+import { proposePlanning, applyPlanning } from '../lib/aiPlanner.js';
+import { hasAI } from '../lib/assistant.js';
+import { getParty } from '../lib/party.js';
 
 const byOrder = (a, b) => (a.order ?? 0) - (b.order ?? 0);
 
@@ -22,6 +25,11 @@ export default function PlannerView() {
   const [cat, setCat] = useState('loisirs');
   const [busy, setBusy] = useState(false);
   const [cover, setCover] = useState(null);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [wishes, setWishes] = useState('');
+  const [proposal, setProposal] = useState(null);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [applying, setApplying] = useState(null);
   useEffect(() => {
     if (trip?.city?.name) cityPhoto(trip.city.name).then(setCover);
   }, [trip?.city?.name]);
@@ -59,6 +67,33 @@ export default function PlannerView() {
     toast(after < before - 50 ? `Trajet réduit de ${formatDistance(before)} à ${formatDistance(after)} depuis l'hôtel` : "L'ordre était déjà le plus court");
   };
 
+  const propose = async () => {
+    if (!hasAI()) return toast('Ajoutez une clé Gemini ou Groq dans Réglages');
+    setAiBusy(true);
+    setProposal(null);
+    try {
+      setProposal(await proposePlanning(trip, places, wishes));
+    } catch (e) {
+      toast(e.message);
+    }
+    setAiBusy(false);
+  };
+  const apply = async () => {
+    const planned = places.filter((p) => p.day).length;
+    if (planned && !(await confirm('Appliquer ce planning ?', `Les lieux proposés seront placés dans leurs jours. Vos ${planned} lieu(x) déjà planifié(s) non repris resteront à leur place.`, 'Appliquer'))) return;
+    setApplying([0, 1]);
+    try {
+      await applyPlanning(trip, tripId, places, proposal, memberId, (d, t) => setApplying([d, t]));
+      toast('Planning appliqué : retrouvez-le jour par jour et sur la carte');
+      setProposal(null);
+      setAiOpen(false);
+      setSelected(1);
+    } catch (e) {
+      toast(e.message);
+    }
+    setApplying(null);
+  };
+
   const add = async () => {
     if (!text.trim()) return;
     setBusy(true);
@@ -90,6 +125,29 @@ export default function PlannerView() {
     </div>
     ${mode === 'firebase' && fromCache ? html`<div class="muted xs">Hors ligne : dernière copie enregistrée.</div>` : null}
 
+    ${aiOpen
+      ? html`<${Card} cls="ai-plan">
+          <div class="row between mb"><b><${Icon} name="wand-magic-sparkles" /> Planning proposé par l'IA</b><button class="iconbtn" onClick=${() => (setAiOpen(false), setProposal(null))}><${Icon} name="xmark" /></button></div>
+          <div class="muted small mb">Pour : ${getParty(trip).map((t) => `${t.name || { adulte: 'Adulte', enfant: 'Enfant', bebe: 'Bébé', chien: 'Chien', chat: 'Chat' }[t.kind] || ''}${t.kind === 'enfant' && t.age ? ` (${t.age} ans)` : ''}${t.pregnant ? ' 🤰' : ''}`).join(', ')} · <a href="#/voyageurs">modifier</a></div>
+          <textarea class="input" placeholder="Envies (facultatif) : ex. Harry Potter, marchés de Noël, pas de musée le dimanche…" value=${wishes} onInput=${(e) => setWishes(e.target.value)}></textarea>
+          ${!proposal ? html`<${Button} title=${aiBusy ? 'L’IA prépare votre planning…' : 'Proposer un planning'} icon="wand-magic-sparkles" variant="accent" loading=${aiBusy} onClick=${propose} />` : null}
+          ${proposal
+            ? html`<div class="mt">
+                ${proposal.days.map(
+                  (d) => html`<div class="aiday">
+                    <div class="aiday-h" style=${`--c:${dayColor(d.day)}`}><b>Jour ${d.day}</b> · ${formatDay(days[d.day - 1]?.iso)}${d.theme ? html` — <span>${d.theme}</span>` : null}</div>
+                    ${d.items.map((it) => html`<div class="aiitem"><span class="aitime">${it.time || ''}</span><div class="grow"><b>${it.name}</b>${it.id ? html` <span class="ai-tag">idée</span>` : null}${it.note ? html`<div class="muted xs">${it.note}</div>` : null}</div></div>`)}
+                  </div>`
+                )}
+                ${proposal.tips?.length ? html`<div class="muted small mt">${proposal.tips.map((t) => html`<div>• ${t}</div>`)}</div>` : null}
+                ${applying
+                  ? html`<div class="small mt">Placement des lieux… ${applying[0]} / ${applying[1]}</div><div class="bar"><div style=${`width:${(applying[0] / applying[1]) * 100}%;background:var(--navy)`}></div></div>`
+                  : html`<div class="row mt"><${Button} cls="grow" title="Appliquer" icon="check" variant="accent" onClick=${apply} /><${Button} cls="grow" title="Autre proposition" icon="rotate" variant="ghost" onClick=${propose} loading=${aiBusy} /></div>`}
+              </div>`
+            : null}
+        </${Card}>`
+      : html`<button class="ai-cta" onClick=${() => setAiOpen(true)}><${Icon} name="wand-magic-sparkles" /><span><b>Proposer un planning avec l'IA</b><small>Selon vos dates, la ville et votre famille</small></span><${Icon} name="chevron-right" /></button>`}
+
     <div class="chips wrap" style="margin:12px 0">
       <${Chip} label=${`Idées (${ideas.length})`} icon="lightbulb" active=${sel === 0} onClick=${() => setSelected(0)} color="var(--warning)" />
       ${days.map((d) => html`<${Chip} label=${`J${d.index} · ${formatDay(d.iso)}`} active=${sel === d.index} onClick=${() => setSelected(d.index)} color=${dayColor(d.index)} />`)}
@@ -98,7 +156,7 @@ export default function PlannerView() {
     ${sel === 0
       ? html`<div class="muted small mb">Notre boîte à idées partagée : ajoutez des envies en vrac, puis touchez <${Icon} name="calendar-days" /> pour les placer dans un jour.</div>`
       : html`<div class="row between">
-            <div class="subtitle">Jour ${sel} · ${formatDay(days[sel - 1].iso)}</div>
+            <div class="subtitle">Jour ${sel} · ${formatDay(days[sel - 1].iso)}${trip.dayThemes?.[sel] ? ` — ${trip.dayThemes[sel]}` : ''}</div>
             ${list.length > 1 ? html`<${Button} small variant="accent" icon="route" title="Optimiser" onClick=${optimize} />` : null}
           </div>
           ${list.length && start ? html`<div class="muted small mb">Boucle depuis l'hôtel : ${formatDistance(total)} à vol d'oiseau (≈ ${familyWalkMinutes(total)} min de marche).</div>` : null}
@@ -120,7 +178,8 @@ export default function PlannerView() {
           </div>
           <div class="grow" onClick=${() => go('lieu', { place: p })} style="cursor:pointer;min-width:0">
             <div class=${`bold ${p.status === 'visited' ? 'strike' : ''}`}>${p.favorite ? '❤️ ' : ''}${p.name}</div>
-            <div class="muted xs">${c.label}${p.status === 'visited' ? ' · Visité' : ''}${p.lat == null ? ' · sans position' : ''}</div>
+            <div class="muted xs">${p.time && sel ? html`<b style="color:var(--navy)">${p.time}</b> · ` : null}${c.label}${p.status === 'visited' ? ' · Visité' : ''}${p.lat == null ? ' · sans position' : ''}</div>
+            ${p.aiNote && sel ? html`<div class="xs" style="color:var(--muted);margin-top:2px"><${Icon} name="wand-magic-sparkles" /> ${p.aiNote}</div>` : null}
           </div>
           ${sel
             ? html`<button class="iconbtn" onClick=${() => shift(i, -1)} aria-label="Monter"><${Icon} name="chevron-up" /></button>
