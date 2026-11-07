@@ -14,6 +14,7 @@ import { store } from '../core/store.js';
 import { searchAddress } from '../lib/places.js';
 import { cachedPhoto, findPhoto } from '../lib/photos.js';
 import TransitPanel, { LineBadge } from '../ui/TransitPanel.js';
+import { transitRoutes } from '../lib/transit.js';
 import { isOpenNow, loadOpeningHours } from '../lib/openNow.js';
 import { distanceMeters, formatDistance, familyWalkMinutes, bestCenter, circle } from '../lib/geo.js';
 import { tripDays, formatDay, dayColor, normTime } from '../lib/dates.js';
@@ -140,6 +141,9 @@ export default function MapView() {
   const [hotels, setHotels] = useState(null);
   const [hotelSel, setHotelSel] = useState(null);
   const [is3d, setIs3d] = useState(true);
+  // Itinéraire à plusieurs étapes, construit en touchant les lieux.
+  const [multi, setMulti] = useState(null); // { stops, mode: 'walk' | 'transit', back, from: 'hotel' | 'me' }
+  const [multiBusy, setMultiBusy] = useState(false);
   const [bearing, setBearing] = useState(0);
 
   const base = trip?.lodging || trip?.city;
@@ -548,6 +552,58 @@ export default function MapView() {
     return () => (removeEventListener('cdv-join', go_), clearTimeout(t));
   }, [others.length, ready]);
 
+  const addStop = (p) => {
+    if (!multi) return;
+    if (multi.stops.some((x) => x.lat === p.lat && x.lon === p.lon)) return toast('Déjà dans l’itinéraire');
+    setMulti({ ...multi, stops: [...multi.stops, { name: p.name, lat: p.lat, lon: p.lon }] });
+    setSel(null);
+    toast(`Étape ${multi.stops.length + 1} : ${p.name}`);
+  };
+  const moveStop = (i, d) => {
+    const st = [...multi.stops];
+    const j = i + d;
+    if (j < 0 || j >= st.length) return;
+    [st[i], st[j]] = [st[j], st[i]];
+    setMulti({ ...multi, stops: st });
+  };
+  const traceMulti = async () => {
+    const origin = multi.from === 'me' && me ? { name: 'Ma position', lat: me.lat, lon: me.lon } : { name: trip.lodging?.name || trip.city.name, lat: base.lat, lon: base.lon };
+    const pts = [origin, ...multi.stops, ...(multi.back ? [origin] : [])];
+    setMultiBusy(true);
+    const parts = [];
+    let google = 0;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = pts[i];
+      const b = pts[i + 1];
+      let leg = null;
+      if (hasGoogle()) {
+        try {
+          const rs = await transitRoutes(a, b, null, multi.mode === 'walk' ? 'WALK' : 'TRANSIT');
+          leg = rs.find((r) => !r.walkOnly) || rs[0] || null;
+        } catch {
+          leg = null;
+        }
+      }
+      if (leg?.parts?.length) {
+        google++;
+        parts.push(...leg.parts.map((x) => ({ ...x, depAt: undefined })));
+      } else {
+        const m = distanceMeters(a, b);
+        parts.push({ type: 'walk', min: familyWalkMinutes(m), m: Math.round(m * 1.25), coords: [[a.lon, a.lat], [b.lon, b.lat]] });
+      }
+    }
+    setMultiBusy(false);
+    const min = parts.reduce((t, x) => t + (x.min || 0), 0);
+    const km = parts.filter((x) => x.type === 'walk').reduce((t, x) => t + (x.m || 0), 0) / 1000;
+    const last = pts[pts.length - 1];
+    const g = { route: { min, parts }, stops: multi.stops, to: { name: last.name, lat: last.lat, lon: last.lon }, title: `Mon itinéraire (${multi.stops.length} étape${multi.stops.length > 1 ? 's' : ''})`, km, multi };
+    if (!google && hasGoogle()) toast('Tracé approximatif (lignes droites) : Google n’a pas répondu');
+    sessionStorage.setItem('cdv-guide', JSON.stringify(g));
+    setMulti(null);
+    setSel(null);
+    setGuide(g);
+  };
+
   const startGuide = (route, to) => {
     const g = { route, to: { name: to.name, lat: to.lat, lon: to.lon } };
     sessionStorage.setItem('cdv-guide', JSON.stringify(g));
@@ -698,6 +754,7 @@ export default function MapView() {
         : null}
       <div class="chips">
         <${Chip} label="Rechercher" icon="magnifying-glass" active=${finding} onClick=${() => setFinding(!finding)} />
+        <${Chip} label="Itinéraire" icon="route" active=${!!multi} onClick=${() => (multi ? setMulti(null) : (endGuide(), setRouteFor(null), setMulti({ stops: [], mode: 'walk', back: false, from: me && distanceMeters(me, base) < 30000 ? 'me' : 'hotel' })))} />
         <${Chip} label="Hôtel idéal" icon="hotel" active=${hotelMode} onClick=${() => (hotelMode ? exitHotelMode() : enterHotelMode())} />
         <${Chip} label="Ouvert maintenant" icon="clock" active=${openOnly} onClick=${() => setOpenOnly(!openOnly)} color="var(--success)" />
         ${CATEGORIES.map((c) => html`<${Chip} label=${c.label} icon=${c.icon} active=${category === c.id} color=${c.color} onClick=${() => pickCategory(c.id)} />`)}
@@ -740,6 +797,32 @@ export default function MapView() {
     </div>
 
     <div class="map-bottom">
+      ${multi && !sel
+        ? html`<div class="sheet multisheet">
+            <div class="row between"><b><${Icon} name="route" /> Itinéraire à plusieurs étapes</b><button class="iconbtn" onClick=${() => setMulti(null)} aria-label="Fermer"><${Icon} name="xmark" /></button></div>
+            <div class="chips">
+              <${Chip} label="Depuis l’hôtel" icon="bed" active=${multi.from === 'hotel'} onClick=${() => setMulti({ ...multi, from: 'hotel' })} />
+              ${me ? html`<${Chip} label="Depuis ma position" icon="location-crosshairs" active=${multi.from === 'me'} onClick=${() => setMulti({ ...multi, from: 'me' })} />` : null}
+            </div>
+            ${multi.stops.length
+              ? html`<ol class="mstops">${multi.stops.map(
+                  (st, i) => html`<li><span class="mnum">${i + 1}</span><span class="grow ellipsis">${st.name}</span>
+                    <button class="iconbtn" onClick=${() => moveStop(i, -1)} aria-label="Monter"><${Icon} name="chevron-up" /></button>
+                    <button class="iconbtn" onClick=${() => moveStop(i, 1)} aria-label="Descendre"><${Icon} name="chevron-down" /></button>
+                    <button class="iconbtn" onClick=${() => setMulti({ ...multi, stops: multi.stops.filter((_, k) => k !== i) })} aria-label="Retirer"><${Icon} name="xmark" /></button></li>`
+                )}</ol>`
+              : html`<div class="muted small">Touchez un lieu sur la carte (ou cherchez-le avec « Rechercher »), puis « Ajouter à l’itinéraire ».</div>`}
+            ${Object.keys(plan).length
+              ? html`<div class="chips">${Object.keys(plan).map((d) => html`<${Chip} label=${`+ lieux du jour ${d}`} color=${dayColor(+d)} onClick=${() => setMulti({ ...multi, stops: [...multi.stops, ...plan[d].filter((p) => !multi.stops.some((x) => x.lat === p.lat && x.lon === p.lon)).map((p) => ({ name: p.name, lat: p.lat, lon: p.lon }))] })} />`)}</div>`
+              : null}
+            <div class="chips">
+              <${Chip} label="À pied" icon="person-walking" active=${multi.mode === 'walk'} onClick=${() => setMulti({ ...multi, mode: 'walk' })} />
+              <${Chip} label="Transports" icon="train-subway" active=${multi.mode === 'transit'} onClick=${() => setMulti({ ...multi, mode: 'transit' })} />
+              <${Chip} label="Retour au départ" icon="rotate-left" active=${multi.back} onClick=${() => setMulti({ ...multi, back: !multi.back })} />
+            </div>
+            <button class="btn accent" disabled=${!multi.stops.length || multiBusy} onClick=${traceMulti}>${multiBusy ? 'Calcul du trajet…' : html`<${Icon} name="route" /> Tracer l’itinéraire${multi.stops.length ? ` (${multi.stops.length} étape${multi.stops.length > 1 ? 's' : ''})` : ''}`}</button>
+          </div>`
+        : null}
       ${routeFor
         ? html`<div class="sheet">
             <div class="row between mb">
@@ -797,14 +880,16 @@ export default function MapView() {
               <div class="gnext"><${Icon} name=${nextStep?.p ? 'bus' : 'person-walking'} /></div>
               <div class="grow" style="min-width:0">
                 <b>${nextStep?.txt}</b>
-                <div class="small muted">${nextStep?.sub || ''}${nextStep?.d != null ? ` · à ${formatDistance(nextStep.d)}` : ''}</div>
+                <div class="small muted">${[nextStep?.sub, nextStep?.d != null ? `à ${formatDistance(nextStep.d)}` : ''].filter(Boolean).join(' · ')}</div>
               </div>
             </div>
             ${guide.stops
-              ? html`<div class="small muted" style="margin-top:6px"><${Icon} name="shoe-prints" /> ${guide.title} · ≈ ${guide.route.min} min · ${guide.km ? `${guide.km.toFixed(1).replace('.', ',')} km` : ''}</div>`
+              ? html`<div class="small muted" style="margin-top:6px"><${Icon} name=${guide.multi ? 'route' : 'shoe-prints'} /> ${guide.title} · ≈ ${guide.route.min} min${guide.km ? ` · ${guide.km.toFixed(1).replace('.', ',')} km à pied` : ''}</div>
+                ${guide.route.parts.some((p) => p.type === 'transit') ? html`<div class="tlines" style="margin-top:6px">${guide.route.parts.filter((p) => p.type === 'transit').map((p) => html`<${LineBadge} p=${p} />`)}</div>` : null}`
               : html`<div class="tlines" style="margin-top:8px">${guide.route.parts.map((p) => (p.type === 'transit' ? html`<${LineBadge} p=${p} />` : html`<span class="walkbit"><${Icon} name="person-walking" />${p.min} min</span>`))}</div>`}
             <div class="row" style="gap:6px;margin-top:8px">
               ${me ? html`<button class=${`pill ${follow ? 'accent' : ''}`} onClick=${() => setFollow(!follow)}><${Icon} name="location-crosshairs" /> ${follow ? 'Je suis suivi' : 'Me suivre'}</button>` : null}
+              ${guide.multi ? html`<button class="pill" onClick=${() => { const m = guide.multi; endGuide(); setMulti(m); }}><${Icon} name="pen" /> Modifier</button>` : null}
               <button class="pill" onClick=${endGuide}><${Icon} name="xmark" /> Terminer</button>
             </div>
           </div>`
@@ -822,7 +907,9 @@ export default function MapView() {
               </div>
               <div class="row" style="margin-top:8px;gap:6px">
                 <button class="pill" onClick=${() => go('lieu', { place: sel })}><${Icon} name="circle-info" /> Fiche</button>
-                <button class="pill accent" onClick=${() => setRouteFor(sel)}><${Icon} name="route" /> Itinéraire</button>
+                ${multi
+                  ? html`<button class="pill accent" onClick=${() => addStop(sel)}><${Icon} name="plus" /> Ajouter à l’itinéraire</button>`
+                  : html`<button class="pill accent" onClick=${() => setRouteFor(sel)}><${Icon} name="route" /> Itinéraire</button>`}
                 ${sel.category === 'hebergement' && !sel.isLodging
                   ? html`<button class="pill" onClick=${() => chooseHotel(sel)}><${Icon} name="bed" /> Notre hôtel</button>`
                   : null}
