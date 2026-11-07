@@ -14,6 +14,8 @@
     var s = 'auto';
     try { s = JSON.parse(localStorage.getItem('cdv::scheme')) || 'auto'; } catch (e) {}
     var dark = s === 'dark' || (s === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+    try { var t = JSON.parse(localStorage.getItem('cdv::theme')); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+    if (dark) document.documentElement.dataset.dark = '1';
     document.write('<meta name="apple-mobile-web-app-status-bar-style" content="' + (dark ? 'black' : 'default') + '">');
     document.write('<meta name="theme-color" content="' + (dark ? '#000000' : '#FFFFFF') + '">');
   })();

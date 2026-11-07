@@ -454,3 +454,24 @@ html, body { height: var(--app-h, 100%); overflow: hidden; background: var(--car
 .aiday-h { border-left: 4px solid var(--c); padding-left: 8px; margin-bottom: 4px; font-size: 14px; } .aiday-h span { color: var(--muted); }
 .aiitem { display: flex; gap: 8px; padding: 4px 0 4px 12px; font-size: 14px; }
 .aitime { width: 42px; flex-shrink: 0; color: var(--navy); font-weight: 800; font-size: 13px; }
+
+/* Bouton mode sombre (onglet Plus) */
+.darktoggle{display:flex;flex-direction:column;align-items:center;gap:2px;border:0;border-radius:14px;padding:8px 12px;background:var(--card,#fff);color:var(--text,#002B49);box-shadow:0 1px 4px rgba(0,0,0,.12);font:inherit;font-size:11px;font-weight:600;cursor:pointer}
+.darktoggle i{font-size:18px;color:var(--cyan)}
+
+/* Planning : heures, arrivée, retouches IA */
+.ptime{position:relative;display:inline-flex;align-items:center;gap:5px;margin-top:4px;padding:3px 8px;border-radius:10px;background:color-mix(in srgb,var(--cyan) 12%,transparent);color:var(--text);font-size:13px;font-weight:600}
+.ptime i{color:var(--cyan);font-size:12px}
+.ptime input{border:0;background:transparent;color:inherit;font:inherit;padding:0;min-width:0;width:auto;-webkit-appearance:none;appearance:none}
+.ptime span{color:var(--muted);font-weight:500;position:absolute;left:26px;pointer-events:none}
+.timesrow{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.timesrow label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
+.timesrow .input{margin:0}
+.arrival{display:flex;align-items:center;gap:8px;margin:4px 0 8px;padding:8px 12px;border-radius:12px;background:color-mix(in srgb,var(--cyan) 10%,var(--card));font-size:14px}
+.arrival i{color:var(--cyan)}
+.aichat{margin-top:12px;padding:10px;border-radius:14px;background:color-mix(in srgb,var(--cyan) 8%,var(--card));display:flex;flex-direction:column;gap:6px}
+.aichat-q{font-size:13px;color:var(--muted)}
+.aichat-q i{color:var(--success)}
+.aichat .send{background:var(--cyan);color:#fff;border-radius:50%;width:40px;height:40px;flex:none}
+.aichat .send:disabled{opacity:.45}
+.arrival input{border:0;background:var(--card);color:var(--text);font:inherit;font-weight:700;border-radius:8px;padding:4px 8px;min-width:84px;min-height:30px}

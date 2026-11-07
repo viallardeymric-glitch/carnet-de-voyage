@@ -23,6 +23,8 @@ export default function TripsView() {
   const [lodgingQuery, setLodgingQuery] = useState('');
   const [lodgings, setLodgings] = useState([]);
   const [lodging, setLodging] = useState(null);
+  const [arrival, setArrival] = useState('');
+  const [departure, setDeparture] = useState('');
 
   const choose = (id) => {
     setTripId(id);
@@ -69,7 +71,7 @@ export default function TripsView() {
     if (!city) return toast('Choisissez d’abord la destination');
     if (!s || !e || e < s) return toast('Choisissez les dates d’arrivée et de départ');
     setBusy(true);
-    const id = await createTrip({ name: name || `Voyage à ${city.name}`, city, startDate: s, endDate: e, lodging: lodging ? { ...lodging, verified: !!lodging.googleId } : null }, memberId);
+    const id = await createTrip({ name: name || `Voyage à ${city.name}`, city, startDate: s, endDate: e, lodging: lodging ? { ...lodging, verified: !!lodging.googleId } : null, arrivalTime: arrival || null, departureTime: departure || null }, memberId);
     setBusy(false);
     setCreating(false);
     choose(id);
@@ -123,6 +125,13 @@ export default function TripsView() {
       <label class="grow"><div class="muted small">Départ</div>
         <input class="input" type="date" value=${end} min=${start || '2024-01-01'} onInput=${(e) => setEnd(e.target.value)} /></label>
     </div>
+    <div class="row">
+      <label class="grow"><div class="muted small">Heure d'arrivée à l'hébergement</div>
+        <input class="input" type="time" value=${arrival} onInput=${(e) => setArrival(e.target.value)} /></label>
+      <label class="grow"><div class="muted small">Heure de départ</div>
+        <input class="input" type="time" value=${departure} onInput=${(e) => setDeparture(e.target.value)} /></label>
+    </div>
+    <div class="muted xs mb">Facultatif : l'IA ne prévoit rien avant votre arrivée ni après votre départ.</div>
     <${Input} label="Nom du voyage (facultatif)" value=${name} onInput=${setName} />
     <${Subtitle}>3. Hébergement (facultatif)</${Subtitle}>
     <div class="muted small mb">Pas encore réservé ? Laissez vide : ajoutez vos visites, puis « Hôtel idéal » sur la carte montre le meilleur quartier.</div>

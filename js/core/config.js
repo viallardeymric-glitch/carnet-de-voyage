@@ -14,10 +14,29 @@ export const ls = {
       if (v == null) localStorage.removeItem(P + k);
       else localStorage.setItem(P + k, JSON.stringify(v));
     } catch (e) {
-      console.warn(e);
+      // Mémoire du téléphone pleine (fiches Google, photos, guides en cache) : on vide les caches
+      // les plus anciens puis on réessaie, pour que les réglages (thème, clés…) soient toujours gardés.
+      purgeCaches();
+      try {
+        localStorage.setItem(P + k, JSON.stringify(v));
+      } catch (e2) {
+        console.warn(e2);
+      }
     }
   },
 };
+
+const CACHE_PREFIXES = ['g:det:', 'g:near:', 'g:hotels:', 'g:health:', 'g:id:', 'photo:', 'transitAI:', 'wiki', 'article'];
+function purgeCaches() {
+  const keys = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k?.startsWith(P) && CACHE_PREFIXES.some((c) => k.slice(P.length).startsWith(c))) keys.push(k);
+  }
+  // Les plus volumineux d'abord (fiches détaillées), jusqu'à libérer environ la moitié.
+  keys.sort((a, b) => (localStorage.getItem(b)?.length || 0) - (localStorage.getItem(a)?.length || 0));
+  keys.slice(0, Math.max(10, Math.ceil(keys.length / 2))).forEach((k) => localStorage.removeItem(k));
+}
 
 export const DEFAULT_MEMBERS = {
   E: { id: 'E', name: 'Eymric', color: '#1E6FD9', email: '' },
@@ -102,11 +121,6 @@ export const THEMES = [
   { id: 'marine', label: 'Marine', colors: ['#0B3D63', '#1B7FC0'] },
 ];
 export function applyAppearance() {
-  // Lagon devient le thème de base (une seule fois : un choix fait ensuite est respecté).
-  if (ls.get('themeV', 0) < 2) {
-    ls.set('theme', 'lagon');
-    ls.set('themeV', 2);
-  }
   const theme = ls.get('theme', 'lagon');
   const scheme = ls.get('scheme', 'auto');
   const dark = scheme === 'dark' || (scheme === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
