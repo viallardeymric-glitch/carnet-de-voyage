@@ -9,7 +9,8 @@ import { useLiveLocation } from '../core/location.js';
 import { otherMember } from '../core/config.js';
 import { CATEGORIES, categoryById, subById } from '../data/categories.js';
 import { fetchPlaces } from '../lib/places.js';
-import { nearbyGoogle, hasGoogle } from '../lib/google.js';
+import { nearbyGoogle, hasGoogle, searchPlaces } from '../lib/google.js';
+import { searchAddress } from '../lib/places.js';
 import { isOpenNow, loadOpeningHours } from '../lib/openNow.js';
 import { distanceMeters, formatDistance, familyWalkMinutes } from '../lib/geo.js';
 import { tripDays, formatDay, dayColor } from '../lib/dates.js';
@@ -113,6 +114,11 @@ export default function MapView() {
   const [failed, setFailed] = useState(false);
   const [day, setDay] = useState(() => Number(sessionStorage.getItem('cdv-mapday') || 0)); // 0 = tout le séjour, -1 = planning masqué
   const [sel, setSel] = useState(null);
+  const [finding, setFinding] = useState(false); // barre de recherche ouverte
+  const [q, setQ] = useState('');
+  const [found, setFound] = useState(null);
+  const [findBusy, setFindBusy] = useState(false);
+  const [pin, setPin] = useState(null);
   const [is3d, setIs3d] = useState(true);
   const [bearing, setBearing] = useState(0);
 
@@ -369,6 +375,46 @@ export default function MapView() {
     focus(p, Math.max(map.current?.getZoom() || 16, 16));
   };
 
+  // Recherche libre : Google (lieux, monuments, commerces), sinon OpenStreetMap.
+  const qTimer = useRef(null);
+  const runFind = async (text) => {
+    const t = text.trim();
+    if (t.length < 2) return setFound(null);
+    setFindBusy(true);
+    const near = map.current ? (({ lng, lat }) => ({ lat, lon: lng }))(map.current.getCenter()) : base;
+    let list = [];
+    try {
+      if (hasGoogle()) list = await searchPlaces(t, near);
+    } catch {
+      list = [];
+    }
+    if (!list.length) {
+      try {
+        list = (await searchAddress(t, trip?.city || near)).map((r) => ({ ...r, category: 'monuments', kind: '' }));
+      } catch {
+        list = [];
+      }
+    }
+    setFound(list.map((p) => ({ ...p, d: me ? distanceMeters(me, p) : distanceMeters(base, p) })));
+    setFindBusy(false);
+  };
+  const onFindInput = (v) => {
+    setQ(v);
+    clearTimeout(qTimer.current);
+    qTimer.current = setTimeout(() => runFind(v), 450);
+  };
+  const pickFound = (p) => {
+    setFinding(false);
+    setFound(null);
+    setPin(p);
+    select(p);
+  };
+  useEffect(() => {
+    if (!ready) return;
+    const c = pin && categoryById(pin.category);
+    draw('search', pin ? [[el('mk mk-pin mk-found', `<i class="fa-solid fa-${c?.icon || 'location-dot'}"></i>`, `--c:var(--danger)`), pin.lon, pin.lat, () => setSel(pin)]] : []);
+  }, [ready, pin]);
+
   const partner = others.find((o) => o.id === otherMember(memberId));
   const gap = me && partner ? distanceMeters(me, partner) : null;
   // Bulles d'info (« Vous êtes ensemble », position refusée) : affichées 8 s, puis masquées
@@ -397,7 +443,33 @@ export default function MapView() {
     ${failed ? html`<div class="map-fail"><${Icon} name="map" /><div>Carte indisponible. Vérifiez la connexion puis rouvrez l'onglet.</div></div>` : null}
 
     <div class="map-top">
+      ${finding
+        ? html`<div class="findbox">
+            <form class="findbar" onSubmit=${(e) => (e.preventDefault(), runFind(q))}>
+              <${Icon} name="magnifying-glass" />
+              <input autofocus placeholder=${`Big Ben, glacier, pharmacie… à ${trip?.city?.name || 'proximité'}`} value=${q} onInput=${(e) => onFindInput(e.target.value)} />
+              ${findBusy ? html`<span class="spinner" style="width:18px;height:18px;margin:0;border-width:2px"></span>` : null}
+              <button type="button" class="iconbtn" onClick=${() => (setFinding(false), setFound(null), setQ(''))} aria-label="Fermer"><${Icon} name="xmark" /></button>
+            </form>
+            ${found
+              ? html`<div class="findlist">
+                  ${found.length === 0 ? html`<div class="muted small" style="padding:12px">Aucun résultat.</div>` : null}
+                  ${found.map(
+                    (p) => html`<button class="finditem" onClick=${() => pickFound(p)}>
+                      <${Thumb} place=${p} city=${trip?.city?.name} size=${44} />
+                      <span class="grow" style="min-width:0">
+                        <b class="ellipsis" style="display:block">${p.name}</b>
+                        <small class="muted ellipsis" style="display:block">${[p.rating ? `★ ${p.rating.toFixed(1)}` : '', p.kind, p.address || p.tags?.street].filter(Boolean).join(' · ')}</small>
+                      </span>
+                      ${p.d != null ? html`<small class="muted">${formatDistance(p.d)}</small>` : null}
+                    </button>`
+                  )}
+                </div>`
+              : null}
+          </div>`
+        : null}
       <div class="chips">
+        <${Chip} label="Rechercher" icon="magnifying-glass" active=${finding} onClick=${() => setFinding(!finding)} />
         <${Chip} label="Ouvert maintenant" icon="clock" active=${openOnly} onClick=${() => setOpenOnly(!openOnly)} color="var(--success)" />
         ${CATEGORIES.map((c) => html`<${Chip} label=${c.label} icon=${c.icon} active=${category === c.id} color=${c.color} onClick=${() => pickCategory(c.id)} />`)}
       </div>

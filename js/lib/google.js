@@ -172,4 +172,27 @@ export async function healthGoogle(center) {
   return list;
 }
 
+// Catégorie de l'app d'après le type Google (pour l'icône et le guide).
+function categoryOf(type = '') {
+  if (/restaurant|cafe|bakery|food|bar|ice_cream|meal/.test(type)) return 'restaurants';
+  if (/museum|art_gallery/.test(type)) return 'musees';
+  if (/park|zoo|aquarium|amusement|playground|bowling|theater|cinema|stadium/.test(type)) return 'loisirs';
+  if (/store|shop|mall|market/.test(type)) return 'shopping';
+  if (/hospital|pharmacy|doctor/.test(type)) return 'sante';
+  if (/atm|station|bathroom|bank/.test(type)) return 'pratique';
+  return 'monuments';
+}
+
+// Recherche libre sur la carte (« Big Ben », « glacier », « boulangerie »…) autour de la destination.
+export async function searchPlaces(q, near) {
+  const d = await call('places:searchText', {
+    method: 'POST',
+    body: { textQuery: q, maxResultCount: 10, languageCode: 'fr', locationBias: { circle: { center: { latitude: near.lat, longitude: near.lon }, radius: 30000 } } },
+    fields: `${LIST_FIELDS},places.formattedAddress`,
+  });
+  return (d.places || [])
+    .filter((g) => g.location)
+    .map((g) => ({ ...toPlace(g, categoryOf(g.primaryType)), address: g.formattedAddress || g.shortFormattedAddress || '' }));
+}
+
 export const PRICE = { PRICE_LEVEL_FREE: 'Gratuit', PRICE_LEVEL_INEXPENSIVE: '€', PRICE_LEVEL_MODERATE: '€€', PRICE_LEVEL_EXPENSIVE: '€€€', PRICE_LEVEL_VERY_EXPENSIVE: '€€€€' };

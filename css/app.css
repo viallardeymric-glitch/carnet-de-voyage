@@ -412,3 +412,12 @@ html, body { height: var(--app-h, 100%); overflow: hidden; background: var(--car
 .tstep > i { width: 22px; text-align: center; color: var(--muted); margin-top: 2px; }
 .offline-bar { background: #3b3f46; color: #fff; font-size: 13px; font-weight: 700; text-align: center; padding: 5px 10px; flex-shrink: 0; }
 .offline-bar i { margin-right: 6px; }
+/* Recherche sur la carte */
+.findbox { padding: 0 10px 6px; }
+.findbar { display: flex; align-items: center; gap: 8px; background: var(--card); border-radius: 16px; padding: 4px 6px 4px 14px; box-shadow: 0 6px 20px rgba(0,0,0,.18); }
+.findbar > i { color: var(--muted); }
+.findbar input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: 16px; padding: 9px 0; }
+.findlist { margin-top: 6px; background: var(--card); border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,.18); max-height: 52vh; overflow-y: auto; }
+.finditem { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: none; color: var(--text); text-align: left; padding: 8px 12px; font: inherit; border-bottom: 1px solid var(--border); cursor: pointer; }
+.finditem:last-child { border-bottom: 0; }
+.mk-found { transform: scale(1.2); }
