@@ -10,7 +10,7 @@ import { openDirections } from '../lib/routing.js';
 import { Card, Button, Icon, Subtitle, SafetyBox, Spinner } from '../ui/components.js';
 import { toast } from '../ui/dialogs.js';
 import { hasGoogle, healthGoogle } from '../lib/google.js';
-import { askAI, hasAI } from '../lib/assistant.js';
+import { parseLooseJSON, askAI, hasAI } from '../lib/assistant.js';
 import { getParty, describeParty } from '../lib/party.js';
 
 export default function EmergencyView() {
@@ -32,8 +32,12 @@ export default function EmergencyView() {
       max: 300,
     })
       .then((t) => {
-        const j = JSON.parse((t || '').replace(/^[^{]*/, '').replace(/[^}]*$/, ''));
-        if (j.general) store.update(`trips/${tripId}`, { emergencyAI: { ...j, extra: [...(j.extra || []), ['112 (souvent valable aussi)', '112']], ai: true } });
+        const j = parseLooseJSON(t);
+        // Firestore refuse les listes de listes : les numéros en plus sont gardés comme objets.
+        const extra = [...(Array.isArray(j.extra) ? j.extra : []), ['112 (souvent valable aussi)', '112']]
+          .map((x) => (Array.isArray(x) ? { label: String(x[0] || ''), num: String(x[1] || '') } : { label: String(x?.label || ''), num: String(x?.num || '') }))
+          .filter((x) => x.num);
+        if (j.general) store.update(`trips/${tripId}`, { emergencyAI: { general: String(j.general), police: String(j.police || j.general), ambulance: String(j.ambulance || j.general), fire: String(j.fire || j.general), extra, ai: true } });
       })
       .catch(() => {});
   }, [trip?.id]);
@@ -86,7 +90,7 @@ Réponds uniquement par des lignes commençant par « - », phrases courtes, san
 
   const hospitals = (health || []).filter((h) => h.isHospital).slice(0, 4);
   const pharmacies = (health || []).filter((h) => !h.isHospital).slice(0, 4);
-  const numbers = [['Ambulance / SAMU', info.ambulance], ['Police', info.police], ['Pompiers', info.fire], ...(info.extra || [])];
+  const numbers = [['Ambulance / SAMU', info.ambulance], ['Police', info.police], ['Pompiers', info.fire], ...(info.extra || []).map((x) => (Array.isArray(x) ? x : [x.label, x.num]))];
 
   const Row = ({ h }) => html`<${Card} style="padding:10px 12px">
     <div class="row">

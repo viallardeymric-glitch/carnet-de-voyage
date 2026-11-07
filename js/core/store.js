@@ -14,6 +14,41 @@ const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 
 const parent = (path) => path.split('/').slice(0, -1).join('/');
 const last = (path) => path.split('/').pop();
 
+// Firestore refuse « undefined » et les listes de listes. On nettoie toujours (undefined retiré,
+// liste de listes → liste d'objets) et on le signale en mode local, pour le voir pendant les tests.
+function firestoreSafe(v, path, where = '', inArray = false) {
+  if (v === undefined) return undefined;
+  if (Array.isArray(v)) {
+    if (inArray) {
+      console.error(`Firestore : liste dans une liste (${path}${where})`);
+      return Object.fromEntries(v.map((x, i) => [i, firestoreSafe(x, path, `${where}[${i}]`)]));
+    }
+    return v.filter((x) => x !== undefined).map((x, i) => firestoreSafe(x, path, `${where}[${i}]`, true));
+  }
+  if (v && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype) {
+    const out = {};
+    for (const [k, x] of Object.entries(v)) {
+      if (x === undefined) continue;
+      out[k] = firestoreSafe(x, path, `${where}.${k}`);
+    }
+    return out;
+  }
+  if (typeof v === 'number' && !Number.isFinite(v)) {
+    console.error(`Firestore : nombre invalide (${path}${where})`);
+    return null;
+  }
+  return v;
+}
+
+// Une erreur Firestore (même levée tout de suite) ne doit jamais casser l'écran en cours.
+function safely(fn) {
+  try {
+    fn()?.catch?.((e) => console.warn('Firestore', e));
+  } catch (e) {
+    console.warn('Firestore', e);
+  }
+}
+
 // ---------------------------------------------------------------- local
 function localBackend() {
   const KEY = 'db';
@@ -36,6 +71,7 @@ function localBackend() {
     return () => subs.get(path).delete(cb);
   };
   const write = (docPath, value) => {
+    if (value != null) value = firestoreSafe(value, docPath);
     const c = parent(docPath);
     data[c] = data[c] || {};
     if (value == null) delete data[c][last(docPath)];
@@ -103,17 +139,17 @@ async function firebaseBackend(cfg) {
     async add(path, value) {
       // On génère l'id localement : l'écriture fonctionne aussi hors-ligne.
       const id = uid();
-      fb.setDoc(ref(`${path}/${id}`), value).catch((e) => console.warn(e));
+      safely(() => fb.setDoc(ref(`${path}/${id}`), firestoreSafe(value, path)));
       return id;
     },
     async set(path, value, merge = false) {
-      fb.setDoc(ref(path), value, { merge }).catch((e) => console.warn(e));
+      safely(() => fb.setDoc(ref(path), firestoreSafe(value, path), { merge }));
     },
     async update(path, patch) {
-      fb.updateDoc(ref(path), patch).catch((e) => console.warn(e));
+      safely(() => fb.updateDoc(ref(path), firestoreSafe(patch, path)));
     },
     async remove(path) {
-      fb.deleteDoc(ref(path)).catch((e) => console.warn(e));
+      safely(() => fb.deleteDoc(ref(path)));
     },
   };
 }

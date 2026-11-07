@@ -147,7 +147,7 @@ export default function PlannerView() {
       toast(`Replacé : ${f.name}, à ${Math.round(distanceMeters(home, f) / 1000)} km`);
     } else {
       await savePlace(tripId, p, { lat: null, lon: null, googleId: null, gphoto: null });
-      toast('Introuvable sur place : position retirée (renommez-le ou supprimez-le)');
+      toast(p.lat == null ? 'Introuvable près de l’hébergement : cherchez-le sur la carte (Rechercher) ou supprimez-le' : 'Introuvable sur place : position retirée. Cherchez-le sur la carte (Rechercher) ou supprimez-le');
     }
   };
   const setTripTime = (k, v) => store.update(`trips/${tripId}`, { [k]: normTime(v) });
@@ -308,12 +308,16 @@ export default function PlannerView() {
           </div>
           <div class="grow" onClick=${() => go('lieu', { place: p })} style="cursor:pointer;min-width:0">
             <div class=${`bold ${p.status === 'visited' ? 'strike' : ''}`}>${p.favorite ? '❤️ ' : ''}${p.name}</div>
-            <div class="muted xs">${c.label}${p.status === 'visited' ? ' · Visité' : ''}${p.lat == null ? ' · sans position' : ''}</div>
+            <div class="muted xs">${c.label}${p.status === 'visited' ? ' · Visité' : ''}${p.lat == null && !sel ? ' · sans position' : ''}</div>
             ${sel
               ? html`<label class="ptime" onClick=${(e) => e.stopPropagation()}>
                   <${Icon} name="clock" />
                   <${TimeField} value=${p.time} onSave=${(t) => setPlaceTime(p, t)} placeholder="Heure ?" />
                 </label>`
+              : null}
+            ${p.lat == null && sel
+              ? html`<div class="farwarn nopos" onClick=${(e) => e.stopPropagation()}><${Icon} name="location-dot" /> Pas encore sur la carte
+                  <button onClick=${() => fixPlace(p)}>Chercher sur place</button></div>`
               : null}
             ${farKm(p) > 40
               ? html`<div class="farwarn" onClick=${(e) => e.stopPropagation()}><${Icon} name="triangle-exclamation" /> Placé à ${farKm(p)} km de l’hébergement : sûrement le mauvais lieu

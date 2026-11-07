@@ -4,7 +4,7 @@ import { useApp, go } from '../core/app.js';
 import { useCollection, store } from '../core/store.js';
 import { searchCities, searchAddress } from '../lib/places.js';
 import { createTrip } from '../lib/trips.js';
-import { frToISO, formatShort } from '../lib/dates.js';
+import { frToISO, formatShort, tripDays } from '../lib/dates.js';
 import { Card, Button, Input, Icon, Subtitle, Empty } from '../ui/components.js';
 import { toast, confirm } from '../ui/dialogs.js';
 import { ls } from '../core/config.js';
@@ -25,6 +25,27 @@ export default function TripsView() {
   const [lodging, setLodging] = useState(null);
   const [arrival, setArrival] = useState('');
   const [departure, setDeparture] = useState('');
+  const [editId, setEditId] = useState(null); // voyage en cours de modification
+
+  const openForm = (t = null) => {
+    setEditId(t?.id || null);
+    setCity(t?.city || null);
+    setName(t?.name || '');
+    setStart(t?.startDate || '');
+    setEnd(t?.endDate || '');
+    setLodging(t?.lodging || null);
+    setArrival(t?.arrivalTime || '');
+    setDeparture(t?.departureTime || '');
+    setCityQuery('');
+    setCities([]);
+    setLodgingQuery('');
+    setLodgings([]);
+    setCreating(true);
+  };
+  const edit = (e, t) => {
+    e.stopPropagation();
+    openForm(t);
+  };
 
   const choose = (id) => {
     setTripId(id);
@@ -63,6 +84,30 @@ export default function TripsView() {
     if (!city) return toast('Choisissez d’abord la destination');
     if (!s || !e || e < s) return toast('Choisissez les dates d’arrivée et de départ');
     setBusy(true);
+    if (editId) {
+      await store.update(`trips/${editId}`, {
+        name: name || `Voyage à ${city.name}`,
+        city,
+        startDate: s,
+        endDate: e,
+        lodging: lodging ? { ...lodging, verified: lodging.verified || !!lodging.googleId } : null,
+        arrivalTime: arrival || null,
+        departureTime: departure || null,
+      });
+      // Séjour raccourci : les lieux des jours qui n'existent plus retournent dans la boîte à idées.
+      const n = tripDays({ startDate: s, endDate: e }).length;
+      const placesPath = `trips/${editId}/places`;
+      const list = await new Promise((res) => {
+        const off = store.sub(placesPath, (items) => (res(items), setTimeout(() => off?.(), 0)));
+      });
+      const orphans = list.filter((p) => p.day && p.day > n);
+      for (const p of orphans) await store.update(`${placesPath}/${p.id}`, { day: null, time: null });
+      setBusy(false);
+      setCreating(false);
+      setEditId(null);
+      toast(orphans.length ? `Voyage modifié · ${orphans.length} lieu(x) des jours supprimés remis dans la boîte à idées` : 'Voyage modifié');
+      return;
+    }
     const id = await createTrip({ name: name || `Voyage à ${city.name}`, city, startDate: s, endDate: e, lodging: lodging ? { ...lodging, verified: !!lodging.googleId } : null, arrivalTime: arrival || null, departureTime: departure || null }, memberId);
     setBusy(false);
     setCreating(false);
@@ -81,16 +126,17 @@ export default function TripsView() {
               <div class="bold" style="font-size:17px">${t.name}</div>
               <div class="muted small">${t.city?.name} · ${t.startDate && formatShort(t.startDate)} → ${t.endDate && formatShort(t.endDate)}</div>
             </div>
+            <button class="iconbtn" aria-label="Modifier le voyage" onClick=${(e) => edit(e, t)}><${Icon} name="pen" /></button>
             <button class="iconbtn" aria-label="Supprimer le voyage" onClick=${(e) => del(e, t)}><${Icon} name="trash-can" /></button>
             <${Icon} name="chevron-right" cls="muted" />
           </div>
         </${Card}>`
       )}
-      <${Button} title="Nouveau voyage" icon="plus" onClick=${() => setCreating(true)} />
+      <${Button} title="Nouveau voyage" icon="plus" onClick=${() => openForm()} />
     </div>`;
 
   return html`<div class="page">
-    <h2 class="title">Nouveau voyage</h2>
+    <h2 class="title">${editId ? 'Modifier le voyage' : 'Nouveau voyage'}</h2>
     <${Subtitle}>1. Destination</${Subtitle}>
     ${city
       ? html`<${Card}><div class="row"><${Icon} name="circle-check" style="color:var(--success)" />
@@ -140,7 +186,7 @@ export default function TripsView() {
             )}
           </div>`}
     <div class="mt"></div>
-    <${Button} title="Créer le voyage" icon="check" onClick=${save} loading=${busy} />
-    <${Button} title="Annuler" variant="ghost" onClick=${() => setCreating(false)} />
+    <${Button} title=${editId ? 'Enregistrer' : 'Créer le voyage'} icon="check" onClick=${save} loading=${busy} />
+    <${Button} title="Annuler" variant="ghost" onClick=${() => (setCreating(false), setEditId(null))} />
   </div>`;
 }

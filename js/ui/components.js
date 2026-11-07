@@ -55,6 +55,13 @@ export const Switch = ({ checked, onChange, disabled }) =>
 export function DialogHost() {
   const [d, setD] = useState(null);
   useEffect(() => setDialogHost(setD), []);
+  // Changer d'écran (retour, menu) referme la fenêtre ouverte, comme « Annuler ».
+  useEffect(() => {
+    if (!d) return undefined;
+    const off = () => (setD(null), d.resolve(null));
+    window.addEventListener('hashchange', off);
+    return () => window.removeEventListener('hashchange', off);
+  }, [d]);
   if (!d) return null;
   const close = (v) => {
     setD(null);
@@ -65,7 +72,7 @@ export function DialogHost() {
       ${d.title ? html`<h3>${d.title}</h3>` : null}
       ${d.message ? html`<div class="muted small mb">${d.message}</div>` : null}
       ${d.input
-        ? html`<input class="input" inputmode="decimal" autofocus value=${(promptBox.value = d.input.value)} onInput=${(e) => (promptBox.value = e.target.value)} />`
+        ? html`<input class="input" inputmode="decimal" autofocus value=${(promptBox.value = d.input.value)} onInput=${(e) => (promptBox.value = e.target.value)} onKeyDown=${(e) => e.key === 'Enter' && close(d.options[0]?.value)} />`
         : null}
       ${d.options.map((o) => html`<button class=${`opt ${o.danger ? 'danger' : ''}`} onClick=${() => close(o.value)}>${o.label}</button>`)}
       <button class="opt cancel" onClick=${() => close(null)}>Annuler</button>

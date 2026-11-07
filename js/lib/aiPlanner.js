@@ -147,21 +147,48 @@ export async function applyPlanning(trip, tripId, places, plan, memberId, onProg
   const byId = new Map(places.map((p) => [p.id, p]));
   const total = plan.days.reduce((a, d) => a + d.items.length, 0);
   let done = 0;
+  const known = [...places]; // lieux existants + ceux créés pendant l'application
+  const used = new Set(); // un lieu n'a qu'un seul créneau : un doublon proposé par l'IA est ignoré
   for (const d of plan.days) {
     let order = 0;
     for (const it of d.items) {
+      // Même lieu déjà noté sous le même nom (sans id renvoyé par l'IA) : on le réutilise, pas de doublon.
+      const same = !it.id && known.find((p) => norm(p.name) === norm(it.name));
+      if (same) it.id = same.id;
+      if (it.id && used.has(it.id)) {
+        onProgress?.(++done, total);
+        continue;
+      }
       const patch = { day: d.day, order: order++, time: it.time || null, aiNote: it.note || null };
       if (it.id && byId.has(it.id)) await savePlace(tripId, byId.get(it.id), patch);
       else {
         const found = await locateNear(it.name, trip);
-        await savePlace(tripId, { ...(found || { name: it.name, lat: null, lon: null, tags: {} }), name: found?.name || it.name, category: it.category }, patch, memberId);
+        // Google renvoie un lieu déjà dans le voyage (même fiche) : on le réutilise.
+        const twin =
+          found &&
+          known.find(
+            (p) => (p.googleId && p.googleId === found.googleId) || (norm(p.name) === norm(found.name) && p.lat != null && distanceMeters(p, found) < 300)
+          );
+        if (twin) {
+          if (!used.has(twin.id)) {
+            await savePlace(tripId, byId.get(twin.id) || twin, patch);
+            used.add(twin.id);
+          }
+          onProgress?.(++done, total);
+          continue;
+        }
+        const name = found?.name || it.name;
+        it.id = await savePlace(tripId, { ...(found || { name: it.name, lat: null, lon: null, tags: {} }), name, category: it.category }, patch, memberId);
+        known.push({ id: it.id, name, googleId: found?.googleId || null, lat: found?.lat ?? null, lon: found?.lon ?? null });
+        known.push({ id: it.id, name: it.name });
       }
+      used.add(it.id);
       onProgress?.(++done, total);
     }
   }
   // Retouche du planning en place : un lieu retiré par l'IA (jour allégé) retourne dans la boîte à idées.
   if (unplanMissing) {
-    const kept = new Set(plan.days.flatMap((d) => d.items.map((i) => i.id).filter(Boolean)));
+    const kept = used;
     for (const p of places) if (p.day && !kept.has(p.id)) await savePlace(tripId, p, { day: null, time: null });
   }
   await store.update(`trips/${tripId}`, { dayThemes: Object.fromEntries(plan.days.map((d) => [d.day, d.theme || ''])), aiTips: plan.tips || [] });
