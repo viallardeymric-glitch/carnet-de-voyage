@@ -34,6 +34,7 @@ export default function PlannerView() {
   const [ask, setAsk] = useState('');
   const [chat, setChat] = useState([]); // demandes d'ajustement déjà faites
   const [refining, setRefining] = useState(false);
+  const [fromCurrent, setFromCurrent] = useState(false); // on retouche le planning déjà en place
   useEffect(() => {
     if (trip?.city?.name) cityPhoto(trip.city.name).then(setCover);
   }, [trip?.city?.name]);
@@ -78,19 +79,45 @@ export default function PlannerView() {
     try {
       setProposal(await proposePlanning(trip, places, wishes));
       setChat([]);
+      setFromCurrent(false);
     } catch (e) {
       toast(e.message);
     }
     setAiBusy(false);
   };
-  const refine = async (e) => {
+  const planned = places.filter((p) => p.day);
+  // Le planning en place, sous la même forme qu'une proposition de l'IA, pour le retoucher par le chat.
+  const currentPlan = () => ({
+    days: days.map((d) => ({
+      day: d.index,
+      theme: trip.dayThemes?.[d.index] || '',
+      items: places
+        .filter((p) => p.day === d.index)
+        .sort(byOrder)
+        .map((p) => ({ name: p.name, id: p.id, category: p.category, time: p.time || null, note: p.aiNote || '' })),
+    })),
+    tips: trip.aiTips || [],
+  });
+  const openAI = (q) => {
+    if (planned.length) {
+      const base = currentPlan();
+      setProposal(base);
+      setFromCurrent(true);
+      setChat([]);
+      if (q) refine(null, q, base, []);
+    } else setProposal(null);
+    setAiOpen(true);
+  };
+  const refine = async (e, preset, base, hist) => {
     e?.preventDefault();
-    const q = ask.trim();
+    const q = (preset || ask).trim();
     if (!q || refining) return;
+    if (!hasAI()) return toast('Ajoutez une clé Gemini ou Groq dans Réglages');
     setRefining(true);
     try {
-      setProposal(await refinePlanning(trip, places, proposal, q, chat));
-      setChat([...chat, q]);
+      const h = hist || chat;
+      setProposal(await refinePlanning(trip, places, base || proposal, q, h));
+      setChat([...h, q]);
       setAsk('');
     } catch (err) {
       toast(err.message);
@@ -99,11 +126,10 @@ export default function PlannerView() {
   };
   const setTripTime = (k, v) => store.update(`trips/${tripId}`, { [k]: v || null });
   const apply = async () => {
-    const planned = places.filter((p) => p.day).length;
-    if (planned && !(await confirm('Appliquer ce planning ?', `Les lieux proposés seront placés dans leurs jours. Vos ${planned} lieu(x) déjà planifié(s) non repris resteront à leur place.`, 'Appliquer'))) return;
+    if (!fromCurrent && planned.length && !(await confirm('Appliquer ce planning ?', `Les lieux proposés seront placés dans leurs jours. Vos ${planned.length} lieu(x) déjà planifié(s) non repris resteront à leur place.`, 'Appliquer'))) return;
     setApplying([0, 1]);
     try {
-      await applyPlanning(trip, tripId, places, proposal, memberId, (d, t) => setApplying([d, t]));
+      await applyPlanning(trip, tripId, places, proposal, memberId, (d, t) => setApplying([d, t]), { unplanMissing: fromCurrent });
       toast('Planning appliqué : retrouvez-le jour par jour et sur la carte');
       setProposal(null);
       setAiOpen(false);
@@ -147,13 +173,14 @@ export default function PlannerView() {
 
     ${aiOpen
       ? html`<${Card} cls="ai-plan">
-          <div class="row between mb"><b><${Icon} name="wand-magic-sparkles" /> Planning proposé par l'IA</b><button class="iconbtn" onClick=${() => (setAiOpen(false), setProposal(null))}><${Icon} name="xmark" /></button></div>
+          <div class="row between mb"><b><${Icon} name="wand-magic-sparkles" /> ${fromCurrent ? 'Modifier mon planning avec l’IA' : 'Planning proposé par l’IA'}</b><button class="iconbtn" onClick=${() => (setAiOpen(false), setProposal(null), setFromCurrent(false))}><${Icon} name="xmark" /></button></div>
           <div class="muted small mb">Pour : ${getParty(trip).map((t) => `${t.name || { adulte: 'Adulte', enfant: 'Enfant', bebe: 'Bébé', chien: 'Chien', chat: 'Chat' }[t.kind] || ''}${t.kind === 'enfant' && t.age ? ` (${t.age} ans)` : ''}${t.pregnant ? ' 🤰' : ''}`).join(', ')} · <a href="#/voyageurs">modifier</a></div>
           <div class="timesrow">
             <label><span><${Icon} name="bed" /> Arrivée à l'hébergement (jour 1)</span><input type="time" class="input" value=${trip.arrivalTime || ''} onChange=${(e) => setTripTime('arrivalTime', e.target.value)} /></label>
             <label><span><${Icon} name="suitcase-rolling" /> Départ (dernier jour)</span><input type="time" class="input" value=${trip.departureTime || ''} onChange=${(e) => setTripTime('departureTime', e.target.value)} /></label>
           </div>
-          <textarea class="input" placeholder="Envies (facultatif) : ex. Harry Potter, marchés de Noël, pas de musée le dimanche…" value=${wishes} onInput=${(e) => setWishes(e.target.value)}></textarea>
+          ${fromCurrent ? html`<div class="muted small mb">Voici votre planning actuel. Demandez juste ce qu’il faut changer : l’IA garde tout le reste, puis vous validez.</div>` : null}
+          ${fromCurrent ? null : html`<textarea class="input" placeholder="Envies (facultatif) : ex. Harry Potter, marchés de Noël, pas de musée le dimanche…" value=${wishes} onInput=${(e) => setWishes(e.target.value)}></textarea>`}
           ${!proposal ? html`<${Button} title=${aiBusy ? 'L’IA prépare votre planning…' : 'Proposer un planning'} icon="wand-magic-sparkles" variant="accent" loading=${aiBusy} onClick=${propose} />` : null}
           ${proposal
             ? html`<div class="mt">
@@ -165,21 +192,26 @@ export default function PlannerView() {
                 )}
                 ${proposal.tips?.length ? html`<div class="muted small mt">${proposal.tips.map((t) => html`<div>• ${t}</div>`)}</div>` : null}
                 <div class="aichat">
-                  <div class="small bold"><${Icon} name="comments" /> Presque bien ? Demandez une retouche</div>
+                  <div class="small bold"><${Icon} name="comments" /> ${fromCurrent ? 'Que voulez-vous changer ?' : 'Presque bien ? Demandez une retouche'}</div>
                   ${chat.map((q) => html`<div class="aichat-q"><${Icon} name="check" /> ${q}</div>`)}
                   <form class="row" onSubmit=${refine}>
-                    <input class="input grow" style="margin:0" placeholder="Ex. alléger le jour 2, Big Ben vers 17 h, fish & chips mardi…" value=${ask} onInput=${(e) => setAsk(e.target.value)} disabled=${refining} />
+                    <input class="input grow" style="margin:0" placeholder=${fromCurrent ? 'Ex. décale le jour 1 après notre arrivée, alléger le jour 2…' : 'Ex. alléger le jour 2, Big Ben vers 17 h, fish & chips mardi…'} value=${ask} onInput=${(e) => setAsk(e.target.value)} disabled=${refining} />
                     <button class="iconbtn send" type="submit" aria-label="Envoyer" disabled=${refining || !ask.trim()}>${refining ? html`<${Icon} name="spinner" cls="fa-spin" />` : html`<${Icon} name="paper-plane" />`}</button>
                   </form>
                   ${refining ? html`<div class="muted xs">L’IA ajuste le planning…</div>` : null}
                 </div>
                 ${applying
                   ? html`<div class="small mt">Placement des lieux… ${applying[0]} / ${applying[1]}</div><div class="bar"><div style=${`width:${(applying[0] / applying[1]) * 100}%;background:var(--navy)`}></div></div>`
-                  : html`<div class="row mt"><${Button} cls="grow" title="Appliquer" icon="check" variant="accent" onClick=${apply} /><${Button} cls="grow" title="Autre proposition" icon="rotate" variant="ghost" onClick=${propose} loading=${aiBusy} /></div>`}
+                  : html`<div class="row mt">
+                      ${fromCurrent && !chat.length ? null : html`<${Button} cls="grow" title=${fromCurrent ? 'Appliquer les retouches' : 'Appliquer'} icon="check" variant="accent" onClick=${apply} />`}
+                      <${Button} cls="grow" title=${fromCurrent ? 'Tout refaire' : 'Autre proposition'} icon="rotate" variant="ghost" onClick=${propose} loading=${aiBusy} />
+                    </div>`}
               </div>`
             : null}
         </${Card}>`
-      : html`<button class="ai-cta" onClick=${() => setAiOpen(true)}><${Icon} name="wand-magic-sparkles" /><span><b>Proposer un planning avec l'IA</b><small>Selon vos dates, la ville et votre famille</small></span><${Icon} name="chevron-right" /></button>`}
+      : html`<button class="ai-cta" onClick=${() => openAI()}><${Icon} name="wand-magic-sparkles" /><span>${planned.length
+          ? html`<b>Modifier mon planning avec l'IA</b><small>Par chat : alléger un jour, changer une heure, ajouter un resto…</small>`
+          : html`<b>Proposer un planning avec l'IA</b><small>Selon vos dates, la ville et votre famille</small>`}</span><${Icon} name="chevron-right" /></button>`}
 
     <div class="chips wrap" style="margin:12px 0">
       <${Chip} label=${`Idées (${ideas.length})`} icon="lightbulb" active=${sel === 0} onClick=${() => setSelected(0)} color="var(--warning)" />
@@ -194,6 +226,16 @@ export default function PlannerView() {
           </div>
           ${sel === 1 ? html`<label class="arrival"><${Icon} name="bed" /><span class="grow">Arrivée à l'hébergement</span><input type="time" value=${trip.arrivalTime || ''} onChange=${(e) => setTripTime('arrivalTime', e.target.value)} /></label>` : null}
           ${sel === days.length ? html`<label class="arrival"><${Icon} name="suitcase-rolling" /><span class="grow">Départ</span><input type="time" value=${trip.departureTime || ''} onChange=${(e) => setTripTime('departureTime', e.target.value)} /></label>` : null}
+          ${(() => {
+            const arr = sel === 1 && trip.arrivalTime && list.filter((p) => p.time && p.time < trip.arrivalTime).length;
+            const dep = sel === days.length && trip.departureTime && list.filter((p) => p.time && p.time > trip.departureTime).length;
+            if (!arr && !dep) return null;
+            const q = arr
+              ? `Nous arrivons à l'hébergement à ${trip.arrivalTime} le jour 1 : décale les activités du jour 1 après notre arrivée (allège le jour si besoin), ne change pas les autres jours.`
+              : `Nous partons à ${trip.departureTime} le dernier jour (jour ${days.length}) : adapte ce jour-là pour finir 1 h 30 avant, ne change pas les autres jours.`;
+            return html`<div class="timewarn"><${Icon} name="triangle-exclamation" /><span class="grow">${arr || dep} activité(s) ${arr ? 'avant votre arrivée' : 'après votre départ'}.</span>
+              <button onClick=${() => openAI(q)}><${Icon} name="wand-magic-sparkles" /> Ajuster avec l’IA</button></div>`;
+          })()}
           ${list.length && start ? html`<div class="muted small mb">Boucle depuis l'hôtel : ${formatDistance(total)} à vol d'oiseau (≈ ${familyWalkMinutes(total)} min de marche).</div>` : null}
           ${list.length
             ? html`<${SafetyBox} title="Rythme doux" icon="mug-hot"><p>Gardez une pause repos de 14 h à 16 h (hôtel ou café calme) pour reprendre des forces. 2 à 3 lieux par jour suffisent.</p></${SafetyBox}>`

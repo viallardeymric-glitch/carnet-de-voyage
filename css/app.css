@@ -475,3 +475,6 @@ html, body { height: var(--app-h, 100%); overflow: hidden; background: var(--car
 .aichat .send{background:var(--cyan);color:#fff;border-radius:50%;width:40px;height:40px;flex:none}
 .aichat .send:disabled{opacity:.45}
 .arrival input{border:0;background:var(--card);color:var(--text);font:inherit;font-weight:700;border-radius:8px;padding:4px 8px;min-width:84px;min-height:30px}
+.timewarn{display:flex;align-items:center;gap:8px;margin:0 0 8px;padding:8px 10px;border-radius:12px;background:color-mix(in srgb,var(--warning,#F5A524) 16%,var(--card));font-size:13px}
+.timewarn>i{color:var(--warning,#F5A524)}
+.timewarn button{border:0;border-radius:10px;padding:6px 10px;background:var(--cyan);color:#fff;font:inherit;font-weight:600;font-size:12px;white-space:nowrap}

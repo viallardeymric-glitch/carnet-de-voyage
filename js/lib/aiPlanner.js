@@ -74,7 +74,7 @@ ${JSON_SHAPE}`;
 
 // Applique la proposition : les idées existantes sont placées dans leur jour, les nouveaux lieux
 // sont cherchés (Google, sinon OpenStreetMap) puis ajoutés au jour.
-export async function applyPlanning(trip, tripId, places, plan, memberId, onProgress) {
+export async function applyPlanning(trip, tripId, places, plan, memberId, onProgress, { unplanMissing = false } = {}) {
   const byId = new Map(places.map((p) => [p.id, p]));
   const near = trip.lodging || trip.city;
   const total = plan.days.reduce((a, d) => a + d.items.length, 0);
@@ -103,6 +103,11 @@ export async function applyPlanning(trip, tripId, places, plan, memberId, onProg
       }
       onProgress?.(++done, total);
     }
+  }
+  // Retouche du planning en place : un lieu retiré par l'IA (jour allégé) retourne dans la boîte à idées.
+  if (unplanMissing) {
+    const kept = new Set(plan.days.flatMap((d) => d.items.map((i) => i.id).filter(Boolean)));
+    for (const p of places) if (p.day && !kept.has(p.id)) await savePlace(tripId, p, { day: null, time: null });
   }
   await store.update(`trips/${tripId}`, { dayThemes: Object.fromEntries(plan.days.map((d) => [d.day, d.theme || ''])), aiTips: plan.tips || [] });
 }
