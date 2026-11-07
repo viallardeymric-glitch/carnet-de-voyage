@@ -10,7 +10,29 @@ const FIELDS = [
   'routes.duration', 'routes.distanceMeters', 'routes.localizedValues',
   'routes.legs.steps.travelMode', 'routes.legs.steps.staticDuration', 'routes.legs.steps.distanceMeters',
   'routes.legs.steps.navigationInstruction', 'routes.legs.steps.transitDetails', 'routes.legs.steps.localizedValues',
+  'routes.legs.steps.polyline', 'routes.legs.steps.startLocation',
 ].join(',');
+
+// Décodage des tracés Google (« encoded polyline ») en [lon, lat].
+export function decodePolyline(str = '') {
+  const out = [];
+  let i = 0, lat = 0, lon = 0;
+  while (i < str.length) {
+    for (const k of [0, 1]) {
+      let b, shift = 0, res = 0;
+      do {
+        b = str.charCodeAt(i++) - 63;
+        res |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      const d = res & 1 ? ~(res >> 1) : res >> 1;
+      if (k === 0) lat += d;
+      else lon += d;
+    }
+    out.push([lon / 1e5, lat / 1e5]);
+  }
+  return out;
+}
 
 const mins = (d) => Math.max(1, Math.round(parseInt(d || '0', 10) / 60));
 const hhmm = (iso) => (iso ? new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '');
@@ -61,14 +83,17 @@ export async function transitRoutes(from, to, when = null) {
           depAt: t.stopDetails?.departureTime || null,
           stops: t.stopCount || 0,
           min: mins(s.staticDuration),
+          coords: decodePolyline(s.polyline?.encodedPolyline),
         });
       } else {
         const last = parts[parts.length - 1];
         const m = mins(s.staticDuration);
+        const coords = decodePolyline(s.polyline?.encodedPolyline);
         if (last?.type === 'walk') {
           last.min += m;
           last.m += s.distanceMeters || 0;
-        } else parts.push({ type: 'walk', min: m, m: s.distanceMeters || 0 });
+          last.coords.push(...coords);
+        } else parts.push({ type: 'walk', min: m, m: s.distanceMeters || 0, coords });
       }
     }
     const firstT = parts.find((p) => p.type === 'transit');

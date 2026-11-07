@@ -193,8 +193,11 @@ export default function PlaceView() {
       ${fromHotel != null && !place.isLodging ? html`<div class="muted small">Depuis l'hôtel : ${formatDistance(fromHotel)}</div>` : null}
       ${mode === 'transit'
         ? html`<div class="mt"><${TransitPanel}
-            from=${me && fromMe < 30000 ? me : !place.isLodging ? trip?.lodging : null}
-            fromName=${me && fromMe < 30000 ? 'ma position' : "l'hôtel"}
+            origins=${[
+              ...(me && (fromMe < 30000 || place.isLodging || !trip?.lodging) ? [{ label: 'ma position', icon: 'location-crosshairs', point: me }] : []),
+              ...(trip?.lodging && !place.isLodging ? [{ label: "l'hôtel", icon: 'bed', point: trip.lodging }] : []),
+              ...(me && fromMe >= 30000 && trip?.lodging && !place.isLodging ? [{ label: 'ma position', icon: 'location-crosshairs', point: me }] : []),
+            ]}
             to=${place}
             city=${trip?.city?.name} /></div>`
         : html`<${Button} title="Y aller" icon="diamond-turn-right" variant="accent" onClick=${() => openDirections(place, mode)} style="margin-top:10px" />`}

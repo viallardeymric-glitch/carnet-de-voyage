@@ -11,6 +11,7 @@ import { CATEGORIES, categoryById, subById } from '../data/categories.js';
 import { fetchPlaces } from '../lib/places.js';
 import { nearbyGoogle, hasGoogle, searchPlaces } from '../lib/google.js';
 import { searchAddress } from '../lib/places.js';
+import TransitPanel, { LineBadge } from '../ui/TransitPanel.js';
 import { isOpenNow, loadOpeningHours } from '../lib/openNow.js';
 import { distanceMeters, formatDistance, familyWalkMinutes } from '../lib/geo.js';
 import { tripDays, formatDay, dayColor } from '../lib/dates.js';
@@ -119,6 +120,16 @@ export default function MapView() {
   const [found, setFound] = useState(null);
   const [findBusy, setFindBusy] = useState(false);
   const [pin, setPin] = useState(null);
+  // Guidage : trajet en transports tracé sur la carte, ma position suivie.
+  const [guide, setGuide] = useState(() => {
+    try {
+      return JSON.parse(sessionStorage.getItem('cdv-guide') || 'null');
+    } catch {
+      return null;
+    }
+  });
+  const [follow, setFollow] = useState(false);
+  const [routeFor, setRouteFor] = useState(null); // lieu pour lequel on choisit un itinéraire
   const [is3d, setIs3d] = useState(true);
   const [bearing, setBearing] = useState(0);
 
@@ -415,6 +426,77 @@ export default function MapView() {
     draw('search', pin ? [[el('mk mk-pin mk-found', `<i class="fa-solid fa-${c?.icon || 'location-dot'}"></i>`, `--c:var(--danger)`), pin.lon, pin.lat, () => setSel(pin)]] : []);
   }, [ready, pin]);
 
+  const startGuide = (route, to) => {
+    const g = { route, to: { name: to.name, lat: to.lat, lon: to.lon } };
+    sessionStorage.setItem('cdv-guide', JSON.stringify(g));
+    setRouteFor(null);
+    setSel(null);
+    setGuide(g);
+  };
+  const endGuide = () => {
+    sessionStorage.removeItem('cdv-guide');
+    setGuide(null);
+    setFollow(false);
+  };
+  // Tracé + arrêts sur la carte.
+  useEffect(() => {
+    const m = map.current;
+    if (!ready || !m) return;
+    if (!m.getSource('guide')) {
+      m.addSource('guide', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      m.addLayer({ id: 'guide-casing', type: 'line', source: 'guide', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#FFFFFF', 'line-width': 10 } });
+      m.addLayer({ id: 'guide-line', type: 'line', source: 'guide', filter: ['==', ['get', 'kind'], 'transit'], layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': ['get', 'color'], 'line-width': 6 } });
+      m.addLayer({ id: 'guide-walk', type: 'line', source: 'guide', filter: ['==', ['get', 'kind'], 'walk'], layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#1E6FD9', 'line-width': 5, 'line-dasharray': [0.2, 1.8] } });
+    }
+    const parts = guide?.route?.parts || [];
+    m.getSource('guide').setData({
+      type: 'FeatureCollection',
+      features: parts.filter((p) => p.coords?.length > 1).map((p) => ({ type: 'Feature', properties: { kind: p.type, color: p.color || '#555' }, geometry: { type: 'LineString', coordinates: p.coords } })),
+    });
+    const marks = [];
+    parts.forEach((p) => {
+      if (p.type !== 'transit' || !p.coords?.length) return;
+      const [lon, lat] = p.coords[0];
+      marks.push([el('mk-stop', `<b style="background:${esc(p.color)};color:${esc(p.textColor)}">${esc(p.line)}</b><span>${esc(p.dep)} · ${esc(p.from)}</span>`), lon, lat, () => toast(`Monter : ${p.vehicle} ${p.line} direction ${p.headsign}, à ${p.dep}`)]);
+      const [lon2, lat2] = p.coords[p.coords.length - 1];
+      marks.push([el('mk-stop end', `<span>Descendre · ${esc(p.to)}</span>`), lon2, lat2, () => toast(`Descendre à ${p.to} (${p.arr})`)]);
+    });
+    if (guide?.to) marks.push([el('mk mk-pin', '<i class="fa-solid fa-flag-checkered"></i>', '--c:var(--danger)'), guide.to.lon, guide.to.lat, null]);
+    draw('guide', marks);
+    const all = parts.flatMap((p) => p.coords || []);
+    if (all.length) {
+      const b = all.reduce((bb, c) => bb.extend(c), new maplibregl.LngLatBounds(all[0], all[0]));
+      m.fitBounds(b, { padding: { top: 140, bottom: 260, left: 40, right: 70 }, pitch: 0, bearing: 0, duration: 1200, maxZoom: 17 });
+    }
+  }, [ready, guide]);
+  // Suivi de ma position pendant le guidage.
+  useEffect(() => {
+    const m = map.current;
+    if (!follow || !m) return undefined;
+    const stop = (e) => e.originalEvent && setFollow(false); // l'utilisateur déplace la carte : on arrête de suivre
+    m.on('dragstart', stop);
+    return () => m.off('dragstart', stop);
+  }, [follow]);
+  useEffect(() => {
+    if (follow && me) map.current?.easeTo({ center: [me.lon, me.lat], zoom: Math.max(map.current.getZoom(), 17), duration: 800 });
+  }, [follow, me?.lat, me?.lon]);
+  // Prochaine étape : l'arrêt où monter tant qu'on n'y est pas, puis l'arrêt où descendre.
+  const nextStep = (() => {
+    const parts = guide?.route?.parts || [];
+    const t = parts.filter((p) => p.type === 'transit' && p.coords?.length);
+    if (!t.length) return guide ? { txt: `Marchez jusqu'à ${guide.to.name}`, d: me ? distanceMeters(me, guide.to) : null } : null;
+    for (const p of t) {
+      const [lon, lat] = p.coords[0];
+      const d = me ? distanceMeters(me, { lat, lon }) : null;
+      const [lon2, lat2] = p.coords[p.coords.length - 1];
+      const dEnd = me ? distanceMeters(me, { lat: lat2, lon: lon2 }) : null;
+      if (dEnd != null && dEnd < 80) continue; // étape déjà faite
+      if (d == null || d > 60) return { txt: `Rejoindre l'arrêt ${p.from}`, sub: `${p.vehicle} ${p.line} à ${p.dep}, direction ${p.headsign}`, d, p };
+      return { txt: `Dans le ${p.vehicle.toLowerCase()} ${p.line} : descendre à ${p.to}`, sub: `${p.stops} arrêt${p.stops > 1 ? 's' : ''} · arrivée ${p.arr}`, d: dEnd, p };
+    }
+    return { txt: `Marchez jusqu'à ${guide.to.name}`, d: me ? distanceMeters(me, guide.to) : null };
+  })();
+
   const partner = others.find((o) => o.id === otherMember(memberId));
   const gap = me && partner ? distanceMeters(me, partner) : null;
   // Bulles d'info (« Vous êtes ensemble », position refusée) : affichées 8 s, puis masquées
@@ -511,7 +593,41 @@ export default function MapView() {
     </div>
 
     <div class="map-bottom">
-      ${sel
+      ${routeFor
+        ? html`<div class="sheet">
+            <div class="row between mb"><b>Itinéraire vers ${routeFor.name}</b><button class="iconbtn" onClick=${() => setRouteFor(null)} aria-label="Fermer"><${Icon} name="xmark" /></button></div>
+            <${TransitPanel}
+              origins=${[
+                ...(me ? [{ label: 'ma position', icon: 'location-crosshairs', point: me }] : []),
+                ...(trip?.lodging && !routeFor.isLodging ? [{ label: "l'hôtel", icon: 'bed', point: trip.lodging }] : []),
+              ]}
+              to=${routeFor}
+              city=${trip?.city?.name}
+              plansLinks=${false}
+              onShow=${(r) => startGuide(r, routeFor)} />
+            <div class="row mt" style="gap:6px">
+              <button class="pill" onClick=${() => openDirections(routeFor, 'walk')}><${Icon} name="person-walking" /> À pied (Plans)</button>
+              <button class="pill" onClick=${() => openDirections(routeFor, 'car')}><${Icon} name="car" /> Voiture</button>
+            </div>
+          </div>`
+        : null}
+      ${guide && !routeFor
+        ? html`<div class="guidecard">
+            <div class="row">
+              <div class="gnext"><${Icon} name=${nextStep?.p ? 'bus' : 'person-walking'} /></div>
+              <div class="grow" style="min-width:0">
+                <b>${nextStep?.txt}</b>
+                <div class="small muted">${nextStep?.sub || ''}${nextStep?.d != null ? ` · à ${formatDistance(nextStep.d)}` : ''}</div>
+              </div>
+            </div>
+            <div class="tlines" style="margin-top:8px">${guide.route.parts.map((p) => (p.type === 'transit' ? html`<${LineBadge} p=${p} />` : html`<span class="walkbit"><${Icon} name="person-walking" />${p.min}</span>`))}</div>
+            <div class="row" style="gap:6px;margin-top:8px">
+              ${me ? html`<button class=${`pill ${follow ? 'accent' : ''}`} onClick=${() => setFollow(!follow)}><${Icon} name="location-crosshairs" /> ${follow ? 'Je suis suivi' : 'Me suivre'}</button>` : null}
+              <button class="pill" onClick=${endGuide}><${Icon} name="xmark" /> Terminer</button>
+            </div>
+          </div>`
+        : null}
+      ${sel && !routeFor
         ? html`<div class="peek" key=${sel.id || sel.osmId || sel.name}>
             <${Thumb} place=${sel} city=${trip?.city?.name} size=${78} />
             <div class="grow" style="min-width:0">
@@ -524,7 +640,7 @@ export default function MapView() {
               </div>
               <div class="row" style="margin-top:8px;gap:6px">
                 <button class="pill" onClick=${() => go('lieu', { place: sel })}><${Icon} name="circle-info" /> Fiche</button>
-                <button class="pill accent" onClick=${() => openDirections(sel, 'walk')}><${Icon} name="diamond-turn-right" /> Y aller</button>
+                <button class="pill accent" onClick=${() => setRouteFor(sel)}><${Icon} name="route" /> Itinéraire</button>
                 ${!sel.isLodging && !selSaved
                   ? html`<button class="pill" onClick=${() => (savePlace(tripId, sel, {}, memberId), toast('Ajouté à la boîte à idées'))}><${Icon} name="plus" /> Garder</button>`
                   : null}
@@ -533,7 +649,7 @@ export default function MapView() {
             <button class="iconbtn" onClick=${() => setSel(null)} aria-label="Fermer"><${Icon} name="xmark" /></button>
           </div>`
         : null}
-      ${days.length
+      ${days.length && !guide && !routeFor
         ? html`<div class="daybar">
             <button class=${`day ${day === -1 ? 'on' : ''}`} style="--c:#5B6B7F" onClick=${() => pickDay(-1)} aria-label="Masquer le planning"><${Icon} name="eye-slash" /> Masquer</button>
             <button class=${`day ${day === 0 ? 'on' : ''}`} style="--c:var(--navy)" onClick=${() => pickDay(0)}>Tout</button>

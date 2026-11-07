@@ -21,7 +21,7 @@ export default function TransitView() {
     ${hotel && me === undefined ? html`<${Spinner} />` : null}
     ${hotel && me !== undefined
       ? near
-        ? html`<${Card}><${TransitPanel} from=${me} fromName="ma position" to=${hotel} city=${trip?.city?.name} plansLinks=${false} /></${Card}>`
+        ? html`<${Card}><${TransitPanel} origins=${[{ label: "ma position", icon: "location-crosshairs", point: me }]} to=${hotel} city=${trip?.city?.name} plansLinks=${false} /></${Card}>`
         : html`<div class="muted small">${me ? "Vous n'êtes pas encore sur place : l'itinéraire du retour s'affichera là-bas." : 'Position indisponible : autorisez la localisation pour l’itinéraire du retour.'}</div>`
       : null}
     <div class="muted xs mt">Pour aller vers un lieu : ouvrez sa fiche, puis « Y aller » › Transports.</div>
