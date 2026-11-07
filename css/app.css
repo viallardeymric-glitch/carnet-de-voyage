@@ -399,3 +399,16 @@ html, body { height: var(--app-h, 100%); overflow: hidden; background: var(--car
 .tripcard { box-shadow: none; padding-left: 0; padding-right: 0; }
 .content.full .map-top { top: calc(var(--safe-top) + 74px); }
 .ai-tag { display: inline-block; font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 8px; background: var(--soft); color: var(--navy); vertical-align: 2px; }
+/* Transports : itinéraires dans l'app */
+.line-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 800; padding: 3px 7px; border-radius: 7px; white-space: nowrap; }
+.walkbit { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; color: var(--muted); font-weight: 700; }
+.tlines { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-bottom: 3px; }
+.tlines > * + *::before { content: '›'; color: var(--muted); margin-right: 5px; font-weight: 400; }
+.troute { border: 1px solid var(--border); border-radius: 14px; padding: 10px 12px; margin-bottom: 8px; cursor: pointer; background: var(--card); }
+.troute.on { border-color: var(--navy); }
+.tmin { text-align: center; line-height: 1; } .tmin b { display: block; font-size: 22px; } .tmin small { font-size: 11px; color: var(--muted); }
+.tsteps { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 8px; }
+.tstep { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0; font-size: 14px; }
+.tstep > i { width: 22px; text-align: center; color: var(--muted); margin-top: 2px; }
+.offline-bar { background: #3b3f46; color: #fff; font-size: 13px; font-weight: 700; text-align: center; padding: 5px 10px; flex-shrink: 0; }
+.offline-bar i { margin-right: 6px; }

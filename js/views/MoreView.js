@@ -4,6 +4,8 @@ import { Card, Icon, MemberBadge } from '../ui/components.js';
 
 const ITEMS = [
   { to: 'assistant', icon: 'wand-magic-sparkles', label: 'Assistant de suggestions', sub: "Que faire maintenant, selon l'heure et la météo" },
+  { to: 'transports', icon: 'bus', label: 'Transports', sub: 'Prochains départs pour rentrer, plans du métro et des bus' },
+  { to: 'horsligne', icon: 'cloud-arrow-down', label: 'Hors-ligne', sub: 'Préparer le voyage pour quand il n’y a pas de réseau' },
   { to: 'checklist', icon: 'list-check', label: 'Check-list de bagages', sub: 'Partagée et synchronisée' },
   { to: 'urgences', icon: 'kit-medical', label: 'Urgences & santé', sub: 'Numéros, hôpitaux et pharmacies proches' },
   { to: 'journal', icon: 'book-open', label: 'Journal de bord', sub: 'Photos et souvenirs de chaque jour' },

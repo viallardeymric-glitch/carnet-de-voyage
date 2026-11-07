@@ -371,6 +371,24 @@ export default function MapView() {
 
   const partner = others.find((o) => o.id === otherMember(memberId));
   const gap = me && partner ? distanceMeters(me, partner) : null;
+  // Bulles d'info (« Vous êtes ensemble », position refusée) : affichées 8 s, puis masquées
+  // jusqu'à ce que la situation change (séparés, éloignés de 500 m de plus…). Un toucher les ferme.
+  const bannerKey = gap == null ? null : gap < 60 ? 'ensemble' : `loin:${Math.round(gap / 500)}`;
+  const [shownKey, setShownKey] = useState(null);
+  const [hiddenKey, setHiddenKey] = useState(null);
+  useEffect(() => {
+    if (!bannerKey || bannerKey === shownKey) return undefined;
+    setShownKey(bannerKey);
+    setHiddenKey(null);
+    const t = setTimeout(() => setHiddenKey(bannerKey), 8000);
+    return () => clearTimeout(t);
+  }, [bannerKey]);
+  const [errHidden, setErrHidden] = useState(false);
+  useEffect(() => {
+    if (!error) return undefined;
+    const t = setTimeout(() => setErrHidden(true), 10000);
+    return () => clearTimeout(t);
+  }, [error]);
   const selFromHotel = sel && !sel.isLodging ? distanceMeters(trip?.lodging, sel) : null;
   const selSaved = sel && (sel.id || saved.some((s) => s.osmId && s.osmId === sel.osmId));
 
@@ -390,8 +408,8 @@ export default function MapView() {
             )}
           </div>`
         : null}
-      ${partner && gap != null
-        ? html`<div class="banner">
+      ${partner && gap != null && hiddenKey !== bannerKey
+        ? html`<div class="banner" onClick=${() => setHiddenKey(bannerKey)}>
             <${MemberBadge} member=${members[partner.id]} size=${24} />
             <div class="grow">
               ${gap < 60
@@ -401,8 +419,8 @@ export default function MapView() {
             </div>
           </div>`
         : null}
-      ${error === 'denied'
-        ? html`<div class="banner"><${Icon} name="triangle-exclamation" style="color:var(--warning)" />
+      ${error === 'denied' && !errHidden
+        ? html`<div class="banner" onClick=${() => setErrHidden(true)}><${Icon} name="triangle-exclamation" style="color:var(--warning)" />
             <div class="grow small">Position refusée : Réglages iPhone › Confidentialité › Service de localisation › Sites Safari › « Lorsque l'app est active ».</div></div>`
         : null}
     </div>

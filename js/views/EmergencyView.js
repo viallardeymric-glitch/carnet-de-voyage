@@ -3,7 +3,7 @@ import { html, useEffect, useState } from '../../vendor/preact.js';
 import { useApp } from '../core/app.js';
 import { store, useDoc } from '../core/store.js';
 import { getPosition } from '../core/location.js';
-import { emergencyFor, PREGNANCY_TIPS } from '../data/emergency.js';
+import { emergencyFor, knownCountry, PREGNANCY_TIPS } from '../data/emergency.js';
 import { fetchHealth } from '../lib/places.js';
 import { distanceMeters, formatDistance } from '../lib/geo.js';
 import { openDirections } from '../lib/routing.js';
@@ -21,7 +21,22 @@ export default function EmergencyView() {
   const insuranceDoc = useDoc(path('meta/insurance'));
   const [ins, setIns] = useState({ name: '', phone: '', contract: '' });
   useEffect(() => setIns({ name: insuranceDoc?.name || '', phone: insuranceDoc?.phone || '', contract: insuranceDoc?.contract || '' }), [insuranceDoc?.phone, insuranceDoc?.name, insuranceDoc?.contract]);
-  const info = emergencyFor(trip?.city?.countryCode);
+  // Pays absent de notre liste : l'IA donne les numéros (gardés dans le voyage, marqués « à vérifier »).
+  const known = knownCountry(trip?.city?.countryCode);
+  const info = !known && trip?.emergencyAI ? trip.emergencyAI : emergencyFor(trip?.city?.countryCode);
+  useEffect(() => {
+    if (!trip || known || trip.emergencyAI || !hasAI() || !navigator.onLine) return;
+    askAI({
+      question: `Numéros d'urgence officiels en ${trip.city?.country} (code ${trip.city?.countryCode}). Réponds UNIQUEMENT en JSON : {"general":"…","police":"…","ambulance":"…","fire":"…","extra":[["libellé","numéro"]]}. Uniquement des numéros dont tu es sûr.`,
+      system: 'Tu donnes des informations factuelles et vérifiées. JSON strict, sans texte autour.',
+      max: 300,
+    })
+      .then((t) => {
+        const j = JSON.parse((t || '').replace(/^[^{]*/, '').replace(/[^}]*$/, ''));
+        if (j.general) store.update(`trips/${tripId}`, { emergencyAI: { ...j, extra: [...(j.extra || []), ['112 (souvent valable aussi)', '112']], ai: true } });
+      })
+      .catch(() => {});
+  }, [trip?.id]);
   const notesDoc = useDoc(path('meta/medical'));
   const [notes, setNotes] = useState('');
   const [health, setHealth] = useState(null);
@@ -92,6 +107,7 @@ Réponds uniquement par des lignes commençant par « - », phrases courtes, san
         <div><div style="font-size:22px;font-weight:800">Appeler le ${info.general}</div><div>Urgences · ${trip?.city?.country || ''}</div></div>
       </div>
     </a>
+    ${info.ai ? html`<div class="muted xs mb"><${Icon} name="wand-magic-sparkles" /> Numéros fournis par l'IA pour ce pays : à vérifier avant le départ.</div>` : null}
     <${Card} style="padding:2px 14px">
       ${numbers.map(([label, n]) => html`<a class="list-item" href=${`tel:${n}`} style="color:var(--text)"><span class="grow">${label}</span><b style="color:var(--cyan);font-size:17px">${n}</b></a>`)}
     </${Card}>

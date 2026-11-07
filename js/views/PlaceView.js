@@ -12,30 +12,12 @@ import { placeDetails, photoUrl, PRICE } from '../lib/google.js';
 import { isOpenNow, loadOpeningHours } from '../lib/openNow.js';
 import { distanceMeters, formatDistance, familyWalkMinutes } from '../lib/geo.js';
 import { MODES, openDirections, reviewsUrl, tripadvisorUrl } from '../lib/routing.js';
+import { md } from '../ui/md.js';
+import TransitPanel from '../ui/TransitPanel.js';
 import { savePlace, removePlace } from '../lib/trips.js';
 import { tripDays, formatDay } from '../lib/dates.js';
 import { Card, Button, Chip, Icon, Subtitle, SafetyBox, Empty } from '../ui/components.js';
 import { actionSheet, confirm } from '../ui/dialogs.js';
-
-// Mise en forme simple du guide : « ## » titres, « - » listes, **gras**.
-function md(text) {
-  const blocks = [];
-  const inline = (t) => t.split(/\*\*(.+?)\*\*/g).map((part, i) => (i % 2 ? html`<b>${part}</b>` : part));
-  for (const raw of text.split('\n')) {
-    const line = raw.trim();
-    if (!line) continue;
-    if (/^#{1,4}\s/.test(line)) blocks.push({ t: 'h', v: line.replace(/^#+\s*/, '') });
-    else if (/^[-*•]\s/.test(line)) {
-      const last = blocks[blocks.length - 1];
-      const item = line.replace(/^[-*•]\s*/, '');
-      if (last?.t === 'ul') last.v.push(item);
-      else blocks.push({ t: 'ul', v: [item] });
-    } else blocks.push({ t: 'p', v: line.replace(/^\*\*(.+)\*\*$/, '$1') });
-  }
-  return blocks.map((b) =>
-    b.t === 'h' ? html`<h4>${b.v}</h4>` : b.t === 'ul' ? html`<ul>${b.v.map((x) => html`<li>${inline(x)}</li>`)}</ul>` : html`<p>${inline(b.v)}</p>`
-  );
-}
 
 export default function PlaceView() {
   const { trip, tripId, path, memberId, members } = useApp();
@@ -209,8 +191,13 @@ export default function PlaceView() {
       <div class="chips mb">${MODES.map((m) => html`<${Chip} label=${m.label} icon=${m.icon} active=${mode === m.id} onClick=${() => setMode(m.id)} />`)}</div>
       ${fromMe != null ? html`<div class="muted small">Depuis ma position : ${formatDistance(fromMe)}${mode === 'walk' && fromMe < 8000 ? ` · ≈ ${familyWalkMinutes(fromMe)} min au rythme de la famille` : ''}</div>` : null}
       ${fromHotel != null && !place.isLodging ? html`<div class="muted small">Depuis l'hôtel : ${formatDistance(fromHotel)}</div>` : null}
-      <${Button} title="Y aller" icon="diamond-turn-right" variant="accent" onClick=${() => openDirections(place, mode)} style="margin-top:10px" />
-      ${mode === 'transit' ? html`<div class="muted xs">Lignes, correspondances et arrêts sont donnés en direct par Plans, Google Maps ou Citymapper.</div>` : null}
+      ${mode === 'transit'
+        ? html`<div class="mt"><${TransitPanel}
+            from=${me && fromMe < 30000 ? me : !place.isLodging ? trip?.lodging : null}
+            fromName=${me && fromMe < 30000 ? 'ma position' : "l'hôtel"}
+            to=${place}
+            city=${trip?.city?.name} /></div>`
+        : html`<${Button} title="Y aller" icon="diamond-turn-right" variant="accent" onClick=${() => openDirections(place, mode)} style="margin-top:10px" />`}
     </${Card}>
 
     ${reviews.length

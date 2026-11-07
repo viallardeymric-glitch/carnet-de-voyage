@@ -24,6 +24,7 @@ export const EMERGENCY = {
 };
 
 export const emergencyFor = (cc) => EMERGENCY[cc] || EU;
+export const knownCountry = (cc) => !!EMERGENCY[cc];
 
 export const PREGNANCY_TIPS = [
   'Gardez le carnet de maternité / dernier compte rendu d\'échographie dans le coffre-fort de l\'app.',

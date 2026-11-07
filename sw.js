@@ -1,5 +1,5 @@
 // Service worker : l'app fonctionne hors-ligne (fichiers de l'app + fonds de carte déjà vus).
-const VERSION = 'cdv-v3.9.1';
+const VERSION = 'cdv-v4.0.0';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'icons/apple-touch-icon.png', 'icons/icon-192.png',
@@ -15,10 +15,12 @@ const SHELL = [
   'js/views/MapView.js', 'js/views/PlaceView.js', 'js/views/PlannerView.js', 'js/views/VaultView.js', 'js/views/BudgetView.js',
   'js/views/MoreView.js', 'js/views/ChecklistView.js', 'js/views/EmergencyView.js', 'js/views/JournalView.js',
   'js/views/AssistantView.js', 'js/views/SettingsView.js', 'js/views/TravelersView.js',
+  'js/views/TransitView.js', 'js/views/OfflineView.js', 'js/lib/transit.js', 'js/lib/offline.js', 'js/ui/TransitPanel.js', 'js/ui/md.js',
 ];
 const LAZY = ['vendor/firebase.js', 'vendor/opening_hours.js'];
 const TILES = 'cdv-tiles';
-const MAX_TILES = 4000;
+const IMGS = 'cdv-img';
+const MAX_TILES = 9000;
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
@@ -31,10 +33,15 @@ self.addEventListener('install', (e) => {
 
 self.addEventListener('activate', (e) => {
   e.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== VERSION && k !== TILES).map((k) => caches.delete(k)))).then(() => self.clients.claim())
+    caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== VERSION && k !== TILES && k !== IMGS).map((k) => caches.delete(k)))).then(() => self.clients.claim())
   );
 });
 
+async function trimCache(name, max) {
+  const c = await caches.open(name);
+  const keys = await c.keys();
+  for (let i = 0; i < keys.length - max; i++) await c.delete(keys[i]);
+}
 async function trimTiles() {
   const c = await caches.open(TILES);
   const keys = await c.keys();
@@ -56,6 +63,27 @@ self.addEventListener('fetch', (e) => {
           if (res.ok || res.type === 'opaque') {
             c.put(e.request, res.clone());
             if (Math.random() < 0.05) trimTiles();
+          }
+          return res;
+        } catch {
+          return new Response('', { status: 504 });
+        }
+      })
+    );
+    return;
+  }
+
+  // Photos des lieux (Google, Wikipédia) : cache d'abord, pour les revoir hors-ligne.
+  if (/(^|\.)googleusercontent\.com$|^upload\.wikimedia\.org$/.test(url.hostname) || (url.hostname === 'places.googleapis.com' && url.pathname.endsWith('/media'))) {
+    e.respondWith(
+      caches.open(IMGS).then(async (c) => {
+        const hit = await c.match(e.request);
+        if (hit) return hit;
+        try {
+          const res = await fetch(e.request);
+          if (res.ok || res.type === 'opaque') {
+            c.put(e.request, res.clone());
+            if (Math.random() < 0.05) trimCache(IMGS, 1500);
           }
           return res;
         } catch {

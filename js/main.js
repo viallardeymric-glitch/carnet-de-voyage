@@ -15,6 +15,8 @@ import LoginView from './views/LoginView.js';
 import PinSetupView from './views/PinSetupView.js';
 import LockView from './views/LockView.js';
 import TripsView from './views/TripsView.js';
+import TransitView from './views/TransitView.js';
+import OfflineView from './views/OfflineView.js';
 import MapView from './views/MapView.js';
 import PlaceView from './views/PlaceView.js';
 import PlannerView from './views/PlannerView.js';
@@ -37,6 +39,8 @@ const SCREENS = {
   lieu: { view: PlaceView, title: () => 'Lieu', sub: true },
   voyages: { view: TripsView, title: () => 'Mes voyages', sub: true },
   checklist: { view: ChecklistView, title: () => 'Check-list', sub: true },
+  transports: { view: TransitView, title: () => 'Transports', sub: true },
+  horsligne: { view: OfflineView, title: () => 'Hors-ligne', sub: true },
   urgences: { view: EmergencyView, title: () => 'Urgences & santé', sub: true },
   journal: { view: JournalView, title: () => 'Journal de bord', sub: true },
   assistant: { view: AssistantView, title: () => 'Assistant', sub: true },
@@ -171,14 +175,28 @@ function TopBar({ route, s }) {
   </header>`;
 }
 
+function useOnline() {
+  const [on, setOn] = useState(navigator.onLine);
+  useEffect(() => {
+    const up = () => setOn(true);
+    const down = () => setOn(false);
+    addEventListener('online', up);
+    addEventListener('offline', down);
+    return () => (removeEventListener('online', up), removeEventListener('offline', down));
+  }, []);
+  return on;
+}
+
 function Shell({ route }) {
   const { tripId } = useApp();
+  const online = useOnline();
   const s = SCREENS[route];
   const View = s.view;
   const showTabs = !!tripId;
   return html`
     <${TopBar} route=${route} s=${s} />
     <main class=${`content ${route === 'carte' ? 'full' : ''}`} key=${route}><${View} /></main>
+    ${!online ? html`<div class="offline-bar" onClick=${() => (location.hash = '#/horsligne')}><i class="fa-solid fa-wifi"></i>Hors-ligne : vos données restent disponibles</div>` : null}
     ${showTabs
       ? html`<nav class="tabbar">
           ${TABS.map(
