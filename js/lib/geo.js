@@ -87,3 +87,28 @@ export function routeLength(points, start) {
   for (let i = 1; i < pts.length; i++) total += distanceMeters(pts[i - 1], pts[i]);
   return total;
 }
+
+// Point « au milieu » de plusieurs lieux (médiane géométrique : moins sensible à un lieu isolé).
+export function bestCenter(points) {
+  if (!points.length) return null;
+  let c = { lat: points.reduce((a, p) => a + p.lat, 0) / points.length, lon: points.reduce((a, p) => a + p.lon, 0) / points.length };
+  for (let k = 0; k < 40; k++) {
+    let wl = 0, wa = 0, wo = 0;
+    for (const p of points) {
+      const w = 1 / Math.max(distanceMeters(c, p), 1);
+      wl += w; wa += p.lat * w; wo += p.lon * w;
+    }
+    c = { lat: wa / wl, lon: wo / wl };
+  }
+  return c;
+}
+
+// Cercle (polygone GeoJSON) de rayon r mètres.
+export function circle(center, r, n = 64) {
+  const pts = [];
+  for (let i = 0; i <= n; i++) {
+    const a = (i / n) * 2 * Math.PI;
+    pts.push([center.lon + (r / (111320 * Math.cos((center.lat * Math.PI) / 180))) * Math.cos(a), center.lat + (r / 110540) * Math.sin(a)]);
+  }
+  return { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [pts] } };
+}

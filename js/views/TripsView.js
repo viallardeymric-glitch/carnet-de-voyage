@@ -125,6 +125,7 @@ export default function TripsView() {
     </div>
     <${Input} label="Nom du voyage (facultatif)" value=${name} onInput=${setName} />
     <${Subtitle}>3. Hébergement (facultatif)</${Subtitle}>
+    <div class="muted small mb">Pas encore réservé ? Laissez vide : ajoutez vos visites, puis « Hôtel idéal » sur la carte montre le meilleur quartier.</div>
     ${lodging
       ? html`<${Card}><div class="row"><${Icon} name="bed" style="color:var(--cyan)" />
           <div class="grow ellipsis">${lodging.name}</div>

@@ -179,7 +179,9 @@ export const CATEGORIES = [
   },
 ];
 
-export const categoryById = (id) => CATEGORIES.find((c) => c.id === id) || CATEGORIES[1];
+// Hébergements proposés par « Hôtel idéal » (pas un filtre de la carte).
+const HEBERGEMENT = { id: 'hebergement', label: 'Hébergement', icon: 'bed', color: '#0E9AA7', query: [] };
+export const categoryById = (id) => (id === 'hebergement' ? HEBERGEMENT : CATEGORIES.find((c) => c.id === id) || CATEGORIES[1]);
 export const subById = (catId, subId) => categoryById(catId).subs?.find((s) => s.id === subId) || null;
 
 export const STATUS = {

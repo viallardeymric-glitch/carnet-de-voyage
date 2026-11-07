@@ -428,3 +428,9 @@ html, body { height: var(--app-h, 100%); overflow: hidden; background: var(--car
 .mk-stop b { padding: 2px 6px; border-radius: 8px; font-size: 12px; }
 .mk-stop.end { padding: 3px 8px; background: #2B2F36; color: #fff; }
 .tmap { margin-left: 10px; width: 40px; height: 40px; border-radius: 12px; border: 0; background: var(--soft); color: var(--navy); font-size: 16px; cursor: pointer; flex-shrink: 0; }
+/* Hôtel idéal */
+.hotelsheet { max-height: 44vh; }
+.hotelrow { display: flex; gap: 10px; align-items: flex-start; padding: 9px 4px; border-bottom: 1px solid var(--border); cursor: pointer; border-radius: 12px; }
+.hotelrow.on { background: var(--soft); padding: 9px 8px; }
+.rank { display: inline-block; background: var(--navy); color: #fff; border-radius: 7px; font-size: 11px; padding: 1px 6px; vertical-align: 1px; }
+.mk-hotel.on { transform: scale(1.25); z-index: 5; }

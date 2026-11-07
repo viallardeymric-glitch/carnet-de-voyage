@@ -4,6 +4,7 @@ import { Card, Icon, MemberBadge } from '../ui/components.js';
 
 const ITEMS = [
   { to: 'assistant', icon: 'wand-magic-sparkles', label: 'Assistant de suggestions', sub: "Que faire maintenant, selon l'heure et la météo" },
+  { to: 'carte', hotel: true, icon: 'hotel', label: 'Trouver l’hôtel idéal', sub: 'Choisissez d’abord vos visites : la carte montre où dormir' },
   { to: 'transports', icon: 'bus', label: 'Transports', sub: 'Prochains départs pour rentrer, plans du métro et des bus' },
   { to: 'horsligne', icon: 'cloud-arrow-down', label: 'Hors-ligne', sub: 'Préparer le voyage pour quand il n’y a pas de réseau' },
   { to: 'checklist', icon: 'list-check', label: 'Check-list de bagages', sub: 'Partagée et synchronisée' },
@@ -25,7 +26,7 @@ export default function MoreView() {
       </div>
     </div>
     ${ITEMS.map(
-      (it) => html`<${Card} onClick=${() => go(it.to)}>
+      (it) => html`<${Card} onClick=${() => (it.hotel && sessionStorage.setItem('cdv-hotelmode', '1'), go(it.to))}>
         <div class="row">
           <${Icon} name=${it.icon} style="color:var(--cyan);font-size:20px;width:28px;text-align:center" />
           <div class="grow"><div class="bold" style="font-size:16px">${it.label}</div><div class="muted small">${it.sub}</div></div>

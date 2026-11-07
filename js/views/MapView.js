@@ -9,16 +9,17 @@ import { useLiveLocation } from '../core/location.js';
 import { otherMember } from '../core/config.js';
 import { CATEGORIES, categoryById, subById } from '../data/categories.js';
 import { fetchPlaces } from '../lib/places.js';
-import { nearbyGoogle, hasGoogle, searchPlaces } from '../lib/google.js';
+import { nearbyGoogle, hasGoogle, searchPlaces, hotelsNear, PRICE } from '../lib/google.js';
+import { store } from '../core/store.js';
 import { searchAddress } from '../lib/places.js';
 import TransitPanel, { LineBadge } from '../ui/TransitPanel.js';
 import { isOpenNow, loadOpeningHours } from '../lib/openNow.js';
-import { distanceMeters, formatDistance, familyWalkMinutes } from '../lib/geo.js';
+import { distanceMeters, formatDistance, familyWalkMinutes, bestCenter, circle } from '../lib/geo.js';
 import { tripDays, formatDay, dayColor } from '../lib/dates.js';
 import { openDirections } from '../lib/routing.js';
 import { savePlace, verifyLodging } from '../lib/trips.js';
 import { Chip, Icon, MemberBadge, Thumb } from '../ui/components.js';
-import { toast } from '../ui/dialogs.js';
+import { toast, confirm } from '../ui/dialogs.js';
 
 const STYLE = 'https://tiles.openfreemap.org/styles/liberty';
 const VIEW_3D = { pitch: 52, bearing: -20 };
@@ -130,6 +131,10 @@ export default function MapView() {
   });
   const [follow, setFollow] = useState(false);
   const [routeFor, setRouteFor] = useState(null); // lieu pour lequel on choisit un itinéraire
+  // Mode « hôtel idéal » : zone la plus proche des lieux choisis + hôtels classés par distance moyenne.
+  const [hotelMode, setHotelMode] = useState(() => sessionStorage.getItem('cdv-hotelmode') === '1');
+  const [hotels, setHotels] = useState(null);
+  const [hotelSel, setHotelSel] = useState(null);
   const [is3d, setIs3d] = useState(true);
   const [bearing, setBearing] = useState(0);
 
@@ -426,6 +431,85 @@ export default function MapView() {
     draw('search', pin ? [[el('mk mk-pin mk-found', `<i class="fa-solid fa-${c?.icon || 'location-dot'}"></i>`, `--c:var(--danger)`), pin.lon, pin.lat, () => setSel(pin)]] : []);
   }, [ready, pin]);
 
+  const targets = saved.filter((p) => p.lat != null);
+  const zone = useMemo(() => {
+    const c = bestCenter(targets);
+    if (!c) return null;
+    const ds = targets.map((p) => distanceMeters(c, p)).sort((a, b) => a - b);
+    const med = ds[Math.floor(ds.length / 2)] || 800;
+    return { center: c, r: Math.min(Math.max(med * 0.6, 400), 1500) };
+  }, [targets.map((p) => `${p.lat},${p.lon}`).join('|')]);
+  const scoreHotel = (h) => {
+    const ds = targets.map((p) => distanceMeters(h, p));
+    const avg = ds.reduce((a, b) => a + b, 0) / Math.max(ds.length, 1);
+    return { ...h, avg, avgWalk: familyWalkMinutes(avg), near: ds.filter((d) => d < 1200).length };
+  };
+  const loadHotels = async (where) => {
+    if (!hasGoogle()) return toast('La recherche d’hôtels demande la clé Google (Réglages)');
+    setHotels(null);
+    try {
+      const c = where || zone?.center || base;
+      const list = await hotelsNear(c, Math.max((zone?.r || 800) * 2, 1500));
+      setHotels(list.map(scoreHotel).sort((a, b) => a.avg - b.avg - ((b.rating || 0) - (a.rating || 0)) * 150));
+    } catch (e) {
+      toast(e.message);
+      setHotels([]);
+    }
+  };
+  const enterHotelMode = () => {
+    if (!targets.length) return toast('Ajoutez d’abord les lieux que vous voulez voir (bouton « Garder » ou Rechercher)');
+    sessionStorage.setItem('cdv-hotelmode', '1');
+    setSel(null);
+    setGuide(null);
+    setHotelMode(true);
+  };
+  const exitHotelMode = () => {
+    sessionStorage.removeItem('cdv-hotelmode');
+    setHotelMode(false);
+    setHotels(null);
+    setHotelSel(null);
+  };
+  const chooseHotel = async (h) => {
+    if (trip?.lodging && trip.lodging.name !== h.name && !(await confirm('Changer d’hébergement ?', `${trip.lodging.name} sera remplacé par ${h.name} pour ce voyage.`, 'Remplacer'))) return;
+    await store.update(`trips/${tripId}`, { lodging: { name: h.name, address: h.address || h.tags?.street || '', lat: h.lat, lon: h.lon, googleId: h.googleId || null, verified: true } });
+    toast(`${h.name} est maintenant l'hébergement du voyage`);
+    exitHotelMode();
+  };
+  const bookingUrl = (h) =>
+    `https://www.booking.com/searchresults.fr.html?ss=${encodeURIComponent(`${h.name} ${trip?.city?.name || ''}`)}${trip?.startDate ? `&checkin=${trip.startDate}&checkout=${trip.endDate}` : ''}&group_adults=${Math.max(1, (trip?.party || []).filter((t) => t.kind === 'adulte').length || 2)}&group_children=${(trip?.party || []).filter((t) => t.kind === 'enfant' || t.kind === 'bebe').length}`;
+  useEffect(() => {
+    if (hotelMode && ready && zone && hotels === null) loadHotels();
+  }, [hotelMode, ready, !!zone]);
+  useEffect(() => {
+    const m = map.current;
+    if (!ready || !m) return;
+    if (!m.getSource('zone')) {
+      m.addSource('zone', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      m.addLayer({ id: 'zone-fill', type: 'fill', source: 'zone', paint: { 'fill-color': '#16A9B4', 'fill-opacity': 0.14 } });
+      m.addLayer({ id: 'zone-line', type: 'line', source: 'zone', paint: { 'line-color': '#0E9AA7', 'line-width': 2.5, 'line-dasharray': [2, 1.5] } });
+    }
+    m.getSource('zone').setData({ type: 'FeatureCollection', features: hotelMode && zone ? [circle(zone.center, zone.r)] : [] });
+    if (hotelMode && zone) {
+      const pts = [...targets, zone.center];
+      const b = pts.reduce((bb, p) => bb.extend([p.lon, p.lat]), new maplibregl.LngLatBounds([pts[0].lon, pts[0].lat], [pts[0].lon, pts[0].lat]));
+      m.fitBounds(b, { padding: { top: 150, bottom: 300, left: 40, right: 70 }, pitch: 0, bearing: 0, duration: 1200, maxZoom: 15.5 });
+    }
+  }, [ready, hotelMode, zone]);
+  useEffect(() => {
+    if (!ready) return;
+    draw(
+      'hotels',
+      hotelMode && hotels
+        ? hotels.map((h, i) => [
+            el(`mk mk-rate mk-hotel ${hotelSel?.googleId === h.googleId ? 'on' : ''}`, `<i class="fa-solid fa-bed"></i><b>${i < 3 ? `#${i + 1} · ` : ''}${h.avgWalk}′</b>`, `--c:${i < 3 ? 'var(--navy)' : '#6B7280'}`),
+            h.lon,
+            h.lat,
+            () => setHotelSel(h),
+          ])
+        : []
+    );
+  }, [ready, hotelMode, hotels, hotelSel]);
+
   const startGuide = (route, to) => {
     const g = { route, to: { name: to.name, lat: to.lat, lon: to.lon } };
     sessionStorage.setItem('cdv-guide', JSON.stringify(g));
@@ -552,6 +636,7 @@ export default function MapView() {
         : null}
       <div class="chips">
         <${Chip} label="Rechercher" icon="magnifying-glass" active=${finding} onClick=${() => setFinding(!finding)} />
+        <${Chip} label="Hôtel idéal" icon="hotel" active=${hotelMode} onClick=${() => (hotelMode ? exitHotelMode() : enterHotelMode())} />
         <${Chip} label="Ouvert maintenant" icon="clock" active=${openOnly} onClick=${() => setOpenOnly(!openOnly)} color="var(--success)" />
         ${CATEGORIES.map((c) => html`<${Chip} label=${c.label} icon=${c.icon} active=${category === c.id} color=${c.color} onClick=${() => pickCategory(c.id)} />`)}
       </div>
@@ -611,7 +696,35 @@ export default function MapView() {
             </div>
           </div>`
         : null}
-      ${guide && !routeFor
+      ${hotelMode
+        ? html`<div class="sheet hotelsheet">
+            <div class="row between mb">
+              <div><b>Où dormir pour tout voir ?</b><div class="muted xs">Zone idéale entre vos ${targets.length} lieux · temps moyen à pied</div></div>
+              <button class="iconbtn" onClick=${exitHotelMode} aria-label="Fermer"><${Icon} name="xmark" /></button>
+            </div>
+            ${hotels === null ? html`<div class="spinner"></div>` : null}
+            ${hotels && !hotels.length ? html`<div class="muted small">Aucun hôtel trouvé ici.</div>` : null}
+            ${(hotels || []).slice(0, 12).map(
+              (h, i) => html`<div class=${`hotelrow ${hotelSel?.googleId === h.googleId ? 'on' : ''}`} onClick=${() => (setHotelSel(h), focus(h, 16))}>
+                <${Thumb} place=${h} city=${trip?.city?.name} size=${54} />
+                <div class="grow" style="min-width:0">
+                  <b class="ellipsis" style="display:block">${i < 3 ? html`<span class="rank">#${i + 1}</span> ` : null}${h.name}</b>
+                  <div class="small muted">${h.rating ? `★ ${h.rating.toFixed(1)} (${h.ratings})` : ''}${h.price ? ` · ${PRICE[h.price] || ''}` : ''}</div>
+                  <div class="small"><b style="color:var(--navy)">≈ ${h.avgWalk} min</b> à pied en moyenne · ${h.near}/${targets.length} lieux à moins de 15 min</div>
+                  ${hotelSel?.googleId === h.googleId
+                    ? html`<div class="row" style="gap:6px;margin-top:8px;flex-wrap:wrap">
+                        <a class="pill accent" href=${bookingUrl(h)} target="_blank" onClick=${(e) => e.stopPropagation()}><${Icon} name="calendar-check" /> Voir prix & réserver</a>
+                        <button class="pill" onClick=${(e) => (e.stopPropagation(), go('lieu', { place: h }))}><${Icon} name="circle-info" /> Fiche</button>
+                        <button class="pill" onClick=${(e) => (e.stopPropagation(), chooseHotel(h))}><${Icon} name="check" /> On le prend</button>
+                      </div>`
+                    : null}
+                </div>
+              </div>`
+            )}
+            <button class="pill mt" onClick=${() => loadHotels((({ lng, lat }) => ({ lat, lon: lng }))(map.current.getCenter()))}><${Icon} name="rotate" /> Chercher autour du centre de la carte</button>
+          </div>`
+        : null}
+      ${guide && !routeFor && !hotelMode
         ? html`<div class="guidecard">
             <div class="row">
               <div class="gnext"><${Icon} name=${nextStep?.p ? 'bus' : 'person-walking'} /></div>
@@ -627,7 +740,7 @@ export default function MapView() {
             </div>
           </div>`
         : null}
-      ${sel && !routeFor
+      ${sel && !routeFor && !hotelMode
         ? html`<div class="peek" key=${sel.id || sel.osmId || sel.name}>
             <${Thumb} place=${sel} city=${trip?.city?.name} size=${78} />
             <div class="grow" style="min-width:0">
@@ -649,7 +762,7 @@ export default function MapView() {
             <button class="iconbtn" onClick=${() => setSel(null)} aria-label="Fermer"><${Icon} name="xmark" /></button>
           </div>`
         : null}
-      ${days.length && !guide && !routeFor
+      ${days.length && !guide && !routeFor && !hotelMode
         ? html`<div class="daybar">
             <button class=${`day ${day === -1 ? 'on' : ''}`} style="--c:#5B6B7F" onClick=${() => pickDay(-1)} aria-label="Masquer le planning"><${Icon} name="eye-slash" /> Masquer</button>
             <button class=${`day ${day === 0 ? 'on' : ''}`} style="--c:var(--navy)" onClick=${() => pickDay(0)}>Tout</button>

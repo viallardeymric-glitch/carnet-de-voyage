@@ -172,6 +172,21 @@ export async function healthGoogle(center) {
   return list;
 }
 
+// Hôtels autour d'un point (les plus populaires), avec note et gamme de prix. Gardés 1 jour.
+export async function hotelsNear(center, radius = 1500) {
+  const key = `g:hotels:${center.lat.toFixed(3)},${center.lon.toFixed(3)}:${radius}`;
+  const hit = ls.get(key);
+  if (hit && Date.now() - hit.at < DAY) return hit.list;
+  const d = await call('places:searchNearby', {
+    method: 'POST',
+    body: { includedTypes: ['hotel', 'lodging'], maxResultCount: 20, rankPreference: 'POPULARITY', languageCode: 'fr', locationRestriction: { circle: { center: { latitude: center.lat, longitude: center.lon }, radius: Math.min(radius, 50000) } } },
+    fields: `${LIST_FIELDS},places.formattedAddress,places.websiteUri`,
+  });
+  const list = (d.places || []).filter((g) => g.location).map((g) => ({ ...toPlace(g, 'hebergement'), address: g.formattedAddress || '', website: g.websiteUri || '' }));
+  ls.set(key, { at: Date.now(), list });
+  return list;
+}
+
 // Catégorie de l'app d'après le type Google (pour l'icône et le guide).
 function categoryOf(type = '') {
   if (/restaurant|cafe|bakery|food|bar|ice_cream|meal/.test(type)) return 'restaurants';

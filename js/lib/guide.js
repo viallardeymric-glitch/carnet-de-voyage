@@ -8,7 +8,7 @@ import { describeParty, guideSections, partyKey } from './party.js';
 export const VISITABLE = ['monuments', 'musees', 'loisirs', 'pluie', 'shopping'];
 // Lieux qui ont un guide : tout sauf les adresses purement pratiques (distributeur, pharmacie…).
 export const hasGuideFor = (place) => !!place && (place.isLodging || !['pratique', 'sante'].includes(place.category));
-const guideKind = (place) => (place.isLodging ? 'lodging' : place.category === 'restaurants' ? 'food' : 'visit');
+const guideKind = (place) => (place.isLodging || place.category === 'hebergement' ? 'lodging' : place.category === 'restaurants' ? 'food' : 'visit');
 export const guideTitle = (place) => ({ lodging: 'Guide du séjour', food: 'Guide du restaurant', visit: 'Guide de visite' })[guideKind(place)];
 
 const system = (party, month) =>
