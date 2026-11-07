@@ -3,10 +3,10 @@
 import { html, useState } from '../../vendor/preact.js';
 import { store } from '../core/store.js';
 import { Icon, Chip, Button } from './components.js';
-import { LineBadge } from './TransitPanel.js';
+import { LineBadge, showOnMap } from './TransitPanel.js';
 import TimeField from './TimeField.js';
 import { toast } from './dialogs.js';
-import { MODES, transferPlan, keyTime } from '../lib/arrival.js';
+import { MODES, transferPlan, keyTime, unpackPath } from '../lib/arrival.js';
 import { hasGoogle, searchPlaces } from '../lib/google.js';
 import { searchAddress } from '../lib/places.js';
 import { normTime } from '../lib/dates.js';
@@ -119,6 +119,14 @@ export default function TravelLeg({ trip, tripId, dir }) {
                           <div class="row between"><b>${r.start || r.dep} → ${r.end || r.arr}</b><span class="muted small">${r.min} min porte à porte${r.fare ? html` · <b style="color:var(--text)">${r.fare}</b> /pers.` : ''}</span></div>
                           <div class="muted xs">${dir === 'arrivee' ? `Départ de ${leg.place?.name || 'l’aéroport'} à ${r.start || r.dep}, arrivée à l’hébergement à ${r.end || r.arr}` : `Départ de l’hébergement à ${r.start || r.dep}, arrivée à ${r.end || r.arr}`}${r.parts[0]?.type === 'walk' && r.parts[0].min >= 15 && dir === 'arrivee' ? ` · les ${r.parts[0].min} min de marche du début partent du point central de l’aéroport : depuis votre terminal, c’est souvent bien moins` : ''}.</div>
                           <div class="tlines">${r.parts.map((p) => (p.type === 'transit' ? html`<${LineBadge} p=${p} />` : html`<span class="walkbit"><${Icon} name="person-walking" />${p.min} min</span>`))}</div>
+                          ${r.parts.some((p) => p.path)
+                            ? html`<button class="tmapbtn" onClick=${(e) => {
+                                e.stopPropagation();
+                                const route = { ...r, parts: r.parts.map((p) => ({ ...p, coords: unpackPath(p.path) })) };
+                                const to = dir === 'arrivee' ? trip.lodging : leg.place;
+                                showOnMap(route, { name: to.name, lat: to.lat, lon: to.lon });
+                              }}><${Icon} name="route" /> Voir l’itinéraire sur la carte</button>`
+                            : null}
                           ${detail === i
                             ? r.parts.map((p) =>
                                 p.type === 'walk'

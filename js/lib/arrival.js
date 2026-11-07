@@ -65,7 +65,7 @@ async function googleOptions(trip, leg, dir) {
   const when = localToDate(iso, fromMin(t), offset);
   const from = dir === 'arrivee' ? leg.place : hotel;
   const to = dir === 'arrivee' ? hotel : leg.place;
-  const clean = (rs) => rs.filter((r) => !r.walkOnly).slice(0, 4).map((r) => ({ ...r, parts: r.parts.map(({ coords, depAt, ...p }) => p), leaveIn: null }));
+  const clean = (rs) => rs.filter((r) => !r.walkOnly).slice(0, 4).map((r) => ({ ...r, parts: r.parts.map(({ coords, depAt, ...p }) => ({ ...p, path: packPath(coords) })), leaveIn: null }));
   try {
     const rs = clean(await transitRoutes(from, to, when, 'TRANSIT', dir === 'depart'));
     if (rs.length) return { routes: rs, note: '' };
@@ -82,6 +82,15 @@ async function googleOptions(trip, leg, dir) {
     return { routes: [], note: '' };
   }
 }
+
+// Le tracé est gardé avec le voyage (Firestore n'accepte pas les listes de listes) : texte compact,
+// au plus ~80 points par tronçon.
+function packPath(coords = []) {
+  const step = Math.max(1, Math.ceil(coords.length / 80));
+  const pts = coords.filter((_, i) => i % step === 0 || i === coords.length - 1);
+  return pts.map(([lon, lat]) => `${lon.toFixed(5)},${lat.toFixed(5)}`).join(';');
+}
+export const unpackPath = (s = '') => (s ? s.split(';').map((p) => p.split(',').map(Number)) : []);
 
 // Heure d'arrivée à l'hébergement (arrivée) ou heure où quitter l'hébergement (départ).
 export function keyTime(leg, dir, routes = [], ai = []) {
