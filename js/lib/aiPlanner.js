@@ -2,7 +2,7 @@
 // et les idées déjà notées. Renvoie une proposition à valider avant de l'appliquer.
 import { askAI } from './assistant.js';
 import { getParty, describeParty } from './party.js';
-import { tripDays, formatDay } from './dates.js';
+import { tripDays, formatDay, normTime } from './dates.js';
 import { ls } from '../core/config.js';
 import { hasGoogle, searchPlaces } from './google.js';
 import { searchAddress } from './places.js';
@@ -43,7 +43,7 @@ function parsePlan(text, trip, places) {
       ...d,
       items: (d.items || [])
         .filter((i) => i?.name)
-        .map((i) => ({ ...i, time: /^\d{1,2}:\d{2}$/.test(i.time || '') ? i.time.padStart(5, '0') : null, id: ids.has(i.id) ? i.id : null, category: CATS.includes(i.category) ? i.category : 'monuments' }))
+        .map((i) => ({ ...i, time: normTime(i.time), id: ids.has(i.id) ? i.id : null, category: CATS.includes(i.category) ? i.category : 'monuments' }))
         .sort((a, b) => (a.time || '99').localeCompare(b.time || '99')),
     }))
     .sort((a, b) => a.day - b.day);

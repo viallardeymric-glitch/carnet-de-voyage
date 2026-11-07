@@ -53,3 +53,10 @@ export function todayIndex(trip) {
 // Une couleur par jour du séjour (carte, planning).
 const DAY_COLORS = ['#EF5B5B', '#3E7BFA', '#22B07D', '#A66BFF', '#FF8A3D', '#14B8C4', '#E5484D', '#D4A017'];
 export const dayColor = (day) => DAY_COLORS[(Math.max(1, day) - 1) % DAY_COLORS.length];
+
+// « 9:5 », « 09:05:00 », « 9h05 » → « 09:05 » ; sinon null.
+export const normTime = (t) => {
+  const m = /^\s*(\d{1,2})\s*[:hH]\s*(\d{1,2})?/.exec(t || '');
+  if (!m || +m[1] > 23 || +(m[2] || 0) > 59) return null;
+  return `${m[1].padStart(2, '0')}:${(m[2] || '0').padStart(2, '0')}`;
+};

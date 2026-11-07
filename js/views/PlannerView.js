@@ -3,7 +3,7 @@ import { html, useEffect, useState } from '../../vendor/preact.js';
 import { useApp, go } from '../core/app.js';
 import { useCollection } from '../core/store.js';
 import { categoryById, CATEGORIES } from '../data/categories.js';
-import { tripDays, formatDay, todayIndex, formatShort, dayColor } from '../lib/dates.js';
+import { tripDays, formatDay, todayIndex, formatShort, dayColor, normTime } from '../lib/dates.js';
 import { cityPhoto } from '../lib/photos.js';
 import { optimizeOrder, routeLength, formatDistance, familyWalkMinutes } from '../lib/geo.js';
 import { savePlace, reorder, removePlace } from '../lib/trips.js';
@@ -16,6 +16,31 @@ import { hasAI } from '../lib/assistant.js';
 import { getParty } from '../lib/party.js';
 
 const byOrder = (a, b) => (a.order ?? 0) - (b.order ?? 0);
+const toMin = (t) => {
+  const n = normTime(t);
+  return n ? +n.slice(0, 2) * 60 + +n.slice(3) : null;
+};
+
+// Champ heure fiable sur iPhone : la roue d'iOS envoie une valeur à chaque cran ; on n'enregistre
+// qu'à la fermeture (perte de focus), sinon la synchro réécrit le champ pendant qu'on le tourne.
+function TimeField({ value, onSave, cls = '', placeholder }) {
+  const v = normTime(value) || '';
+  const [draft, setDraft] = useState(v);
+  const [editing, setEditing] = useState(false);
+  useEffect(() => {
+    if (!editing) setDraft(v);
+  }, [v, editing]);
+  const commit = (e) => {
+    setEditing(false);
+    const n = normTime(e.target.value) || '';
+    if (n !== v) onSave(n || null);
+  };
+  return html`<span class=${`tfield ${cls}`}>
+    <input type="time" value=${draft} onFocus=${() => setEditing(true)} onInput=${(e) => setDraft(e.target.value)} onBlur=${commit}
+      onKeyDown=${(e) => e.key === 'Enter' && e.target.blur()} />
+    ${!draft && placeholder ? html`<span class="tph">${placeholder}</span>` : null}
+  </span>`;
+}
 
 export default function PlannerView() {
   const { trip, tripId, path, memberId, mode } = useApp();
@@ -69,6 +94,9 @@ export default function PlannerView() {
     const ordered = optimizeOrder(list, start);
     const after = routeLength(ordered, start);
     await reorder(tripId, ordered);
+    // Les créneaux horaires restent dans l'ordre de la journée : le 1er lieu prend la 1re heure, etc.
+    const slots = list.map((x) => normTime(x.time)).filter(Boolean).sort();
+    if (slots.length === list.length) await Promise.all(ordered.map((x, i) => (normTime(x.time) !== slots[i] ? savePlace(tripId, x, { time: slots[i] }) : null)));
     toast(after < before - 50 ? `Trajet réduit de ${formatDistance(before)} à ${formatDistance(after)} depuis l'hôtel` : "L'ordre était déjà le plus court");
   };
 
@@ -94,7 +122,7 @@ export default function PlannerView() {
       items: places
         .filter((p) => p.day === d.index)
         .sort(byOrder)
-        .map((p) => ({ name: p.name, id: p.id, category: p.category, time: p.time || null, note: p.aiNote || '' })),
+        .map((p) => ({ name: p.name, id: p.id, category: p.category, time: normTime(p.time), note: p.aiNote || '' })),
     })),
     tips: trip.aiTips || [],
   });
@@ -124,7 +152,20 @@ export default function PlannerView() {
     }
     setRefining(false);
   };
-  const setTripTime = (k, v) => store.update(`trips/${tripId}`, { [k]: v || null });
+  const setTripTime = (k, v) => store.update(`trips/${tripId}`, { [k]: normTime(v) });
+  // Nouvelle heure d'un lieu : on l'enregistre puis on remet la journée dans l'ordre des heures
+  // (un lieu sans heure reste juste après celui qui le précède).
+  const setPlaceTime = async (p, t) => {
+    await savePlace(tripId, p, { time: t });
+    let last = -1;
+    const keyed = list.map((x, i) => {
+      const m = toMin(x.id === p.id ? t : x.time);
+      if (m != null) last = m;
+      return { x, k: m ?? last, i };
+    });
+    const sorted = [...keyed].sort((a, b) => a.k - b.k || a.i - b.i).map((e) => e.x);
+    if (sorted.some((x, i) => x.id !== list[i].id)) await reorder(tripId, sorted);
+  };
   const apply = async () => {
     if (!fromCurrent && planned.length && !(await confirm('Appliquer ce planning ?', `Les lieux proposés seront placés dans leurs jours. Vos ${planned.length} lieu(x) déjà planifié(s) non repris resteront à leur place.`, 'Appliquer'))) return;
     setApplying([0, 1]);
@@ -176,8 +217,8 @@ export default function PlannerView() {
           <div class="row between mb"><b><${Icon} name="wand-magic-sparkles" /> ${fromCurrent ? 'Modifier mon planning avec l’IA' : 'Planning proposé par l’IA'}</b><button class="iconbtn" onClick=${() => (setAiOpen(false), setProposal(null), setFromCurrent(false))}><${Icon} name="xmark" /></button></div>
           <div class="muted small mb">Pour : ${getParty(trip).map((t) => `${t.name || { adulte: 'Adulte', enfant: 'Enfant', bebe: 'Bébé', chien: 'Chien', chat: 'Chat' }[t.kind] || ''}${t.kind === 'enfant' && t.age ? ` (${t.age} ans)` : ''}${t.pregnant ? ' 🤰' : ''}`).join(', ')} · <a href="#/voyageurs">modifier</a></div>
           <div class="timesrow">
-            <label><span><${Icon} name="bed" /> Arrivée à l'hébergement (jour 1)</span><input type="time" class="input" value=${trip.arrivalTime || ''} onChange=${(e) => setTripTime('arrivalTime', e.target.value)} /></label>
-            <label><span><${Icon} name="suitcase-rolling" /> Départ (dernier jour)</span><input type="time" class="input" value=${trip.departureTime || ''} onChange=${(e) => setTripTime('departureTime', e.target.value)} /></label>
+            <label><span><${Icon} name="bed" /> Arrivée à l'hébergement (jour 1)</span><${TimeField} cls="input" value=${trip.arrivalTime} onSave=${(t) => setTripTime('arrivalTime', t)} placeholder="--:--" /></label>
+            <label><span><${Icon} name="suitcase-rolling" /> Départ (dernier jour)</span><${TimeField} cls="input" value=${trip.departureTime} onSave=${(t) => setTripTime('departureTime', t)} placeholder="--:--" /></label>
           </div>
           ${fromCurrent ? html`<div class="muted small mb">Voici votre planning actuel. Demandez juste ce qu’il faut changer : l’IA garde tout le reste, puis vous validez.</div>` : null}
           ${fromCurrent ? null : html`<textarea class="input" placeholder="Envies (facultatif) : ex. Harry Potter, marchés de Noël, pas de musée le dimanche…" value=${wishes} onInput=${(e) => setWishes(e.target.value)}></textarea>`}
@@ -224,16 +265,22 @@ export default function PlannerView() {
             <div class="subtitle">Jour ${sel} · ${formatDay(days[sel - 1].iso)}${trip.dayThemes?.[sel] ? ` — ${trip.dayThemes[sel]}` : ''}</div>
             ${list.length > 1 ? html`<${Button} small variant="accent" icon="route" title="Optimiser" onClick=${optimize} />` : null}
           </div>
-          ${sel === 1 ? html`<label class="arrival"><${Icon} name="bed" /><span class="grow">Arrivée à l'hébergement</span><input type="time" value=${trip.arrivalTime || ''} onChange=${(e) => setTripTime('arrivalTime', e.target.value)} /></label>` : null}
-          ${sel === days.length ? html`<label class="arrival"><${Icon} name="suitcase-rolling" /><span class="grow">Départ</span><input type="time" value=${trip.departureTime || ''} onChange=${(e) => setTripTime('departureTime', e.target.value)} /></label>` : null}
+          ${sel === 1 ? html`<label class="arrival"><${Icon} name="bed" /><span class="grow">Arrivée à l'hébergement</span><${TimeField} value=${trip.arrivalTime} onSave=${(t) => setTripTime('arrivalTime', t)} placeholder="Heure ?" /></label>` : null}
+          ${sel === days.length ? html`<label class="arrival"><${Icon} name="suitcase-rolling" /><span class="grow">Départ</span><${TimeField} value=${trip.departureTime} onSave=${(t) => setTripTime('departureTime', t)} placeholder="Heure ?" /></label>` : null}
           ${(() => {
-            const arr = sel === 1 && trip.arrivalTime && list.filter((p) => p.time && p.time < trip.arrivalTime).length;
-            const dep = sel === days.length && trip.departureTime && list.filter((p) => p.time && p.time > trip.departureTime).length;
-            if (!arr && !dep) return null;
+            const a = toMin(trip.arrivalTime);
+            const d = toMin(trip.departureTime);
+            const bad = list.filter((p) => {
+              const m = toMin(p.time);
+              if (m == null) return false;
+              return (sel === 1 && a != null && m < a) || (sel === days.length && d != null && m >= d);
+            });
+            if (!bad.length) return null;
+            const arr = sel === 1 && a != null && bad.some((p) => toMin(p.time) < a);
             const q = arr
               ? `Nous arrivons à l'hébergement à ${trip.arrivalTime} le jour 1 : décale les activités du jour 1 après notre arrivée (allège le jour si besoin), ne change pas les autres jours.`
               : `Nous partons à ${trip.departureTime} le dernier jour (jour ${days.length}) : adapte ce jour-là pour finir 1 h 30 avant, ne change pas les autres jours.`;
-            return html`<div class="timewarn"><${Icon} name="triangle-exclamation" /><span class="grow">${arr || dep} activité(s) ${arr ? 'avant votre arrivée' : 'après votre départ'}.</span>
+            return html`<div class="timewarn"><${Icon} name="triangle-exclamation" /><span class="grow">${bad.map((p) => `${p.name} (${normTime(p.time)})`).join(', ')} : ${arr ? `avant votre arrivée à ${normTime(trip.arrivalTime)}` : `après votre départ à ${normTime(trip.departureTime)}`}.</span>
               <button onClick=${() => openAI(q)}><${Icon} name="wand-magic-sparkles" /> Ajuster avec l’IA</button></div>`;
           })()}
           ${list.length && start ? html`<div class="muted small mb">Boucle depuis l'hôtel : ${formatDistance(total)} à vol d'oiseau (≈ ${familyWalkMinutes(total)} min de marche).</div>` : null}
@@ -259,8 +306,7 @@ export default function PlannerView() {
             ${sel
               ? html`<label class="ptime" onClick=${(e) => e.stopPropagation()}>
                   <${Icon} name="clock" />
-                  <input type="time" value=${p.time || ''} onChange=${(e) => savePlace(tripId, p, { time: e.target.value || null })} />
-                  ${p.time ? null : html`<span>Heure ?</span>`}
+                  <${TimeField} value=${p.time} onSave=${(t) => setPlaceTime(p, t)} placeholder="Heure ?" />
                 </label>`
               : null}
             ${p.aiNote && sel ? html`<div class="xs" style="color:var(--muted);margin-top:2px"><${Icon} name="wand-magic-sparkles" /> ${p.aiNote}</div>` : null}

@@ -463,7 +463,6 @@ html, body { height: var(--app-h, 100%); overflow: hidden; background: var(--car
 .ptime{position:relative;display:inline-flex;align-items:center;gap:5px;margin-top:4px;padding:3px 8px;border-radius:10px;background:color-mix(in srgb,var(--cyan) 12%,transparent);color:var(--text);font-size:13px;font-weight:600}
 .ptime i{color:var(--cyan);font-size:12px}
 .ptime input{border:0;background:transparent;color:inherit;font:inherit;padding:0;min-width:0;width:auto;-webkit-appearance:none;appearance:none}
-.ptime span{color:var(--muted);font-weight:500;position:absolute;left:26px;pointer-events:none}
 .timesrow{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
 .timesrow label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
 .timesrow .input{margin:0}
@@ -478,3 +477,9 @@ html, body { height: var(--app-h, 100%); overflow: hidden; background: var(--car
 .timewarn{display:flex;align-items:center;gap:8px;margin:0 0 8px;padding:8px 10px;border-radius:12px;background:color-mix(in srgb,var(--warning,#F5A524) 16%,var(--card));font-size:13px}
 .timewarn>i{color:var(--warning,#F5A524)}
 .timewarn button{border:0;border-radius:10px;padding:6px 10px;background:var(--cyan);color:#fff;font:inherit;font-weight:600;font-size:12px;white-space:nowrap}
+.tfield{position:relative;display:inline-flex;align-items:center}
+.tfield .tph{position:absolute;left:8px;color:var(--muted);font-weight:500;pointer-events:none}
+.ptime .tfield .tph{left:0}
+.tfield.input{display:flex;padding:0;overflow:hidden}
+.tfield.input input{flex:1;border:0;background:transparent;color:var(--text);font:inherit;padding:12px 14px;min-height:44px;width:100%}
+.tfield.input .tph{left:14px}
