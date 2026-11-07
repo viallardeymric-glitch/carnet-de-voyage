@@ -4,7 +4,7 @@ import { useApp, go } from '../core/app.js';
 import { Card, Icon, MemberBadge } from '../ui/components.js';
 
 const ITEMS = [
-  { to: 'assistant', icon: 'wand-magic-sparkles', label: 'Assistant de suggestions', sub: "Que faire maintenant, selon l'heure et la météo" },
+  { to: 'assistant', icon: 'wand-magic-sparkles', label: 'Assistant de suggestions', sub: "Que faire maintenant, petites balades à pied, météo" },
   { to: 'carte', hotel: true, icon: 'hotel', label: 'Trouver l’hôtel idéal', sub: 'Choisissez d’abord vos visites : la carte montre où dormir' },
   { to: 'transports', icon: 'bus', label: 'Transports', sub: 'Prochains départs pour rentrer, plans du métro et des bus' },
   { to: 'horsligne', icon: 'cloud-arrow-down', label: 'Hors-ligne', sub: 'Préparer le voyage pour quand il n’y a pas de réseau' },

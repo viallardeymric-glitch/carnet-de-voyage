@@ -271,7 +271,8 @@ export default function PlannerView() {
             : null}`}
 
     ${list.length === 0
-      ? html`<${Empty} icon=${sel ? 'calendar' : 'lightbulb'} text=${sel ? 'Rien de prévu ce jour-là. Ajoutez des lieux depuis la boîte à idées ou la carte.' : 'La boîte à idées est vide.'} />`
+      ? html`<${Empty} icon=${sel ? 'calendar' : 'lightbulb'} text=${sel ? 'Rien de prévu ce jour-là. Ajoutez des lieux depuis la boîte à idées ou la carte.' : 'La boîte à idées est vide.'} />
+        ${sel ? html`<button class="ai-cta" style="margin-bottom:10px" onClick=${() => go('assistant')}><${Icon} name="shoe-prints" /><span><b>Pas d’idée ? Une petite balade à pied</b><small>L’IA propose des boucles faciles autour de vous</small></span><${Icon} name="chevron-right" /></button>` : null}`
       : null}
 
     ${list.map((p, i) => {

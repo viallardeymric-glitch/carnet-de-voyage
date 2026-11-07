@@ -500,3 +500,21 @@ html, body { height: var(--app-h, 100%); overflow: hidden; background: var(--car
 .legopt{padding:8px 10px;border-radius:12px;background:var(--bg);display:flex;flex-direction:column;gap:3px}
 .legopt.rec{background:color-mix(in srgb,var(--success,#2BB673) 10%,var(--card));border:1px solid color-mix(in srgb,var(--success,#2BB673) 40%,transparent)}
 .legopt b i{color:var(--cyan);margin-right:2px}
+/* Heure prévue sous la bulle photo de la carte */
+.mk-photo .mtime{position:absolute;left:50%;bottom:-20px;transform:translateX(-50%);text-decoration:none;background:var(--c);color:#fff;font-size:11px;font-weight:800;padding:1px 6px;border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,.25);white-space:nowrap}
+.mk-stop.walkstop b{background:#1E6FD9;color:#fff}
+.walk{display:flex;flex-direction:column;gap:6px;padding:10px 0;border-top:1px solid var(--border)}
+.walk:first-of-type{border-top:0}
+.walksteps{margin:0;padding-left:20px;font-size:13px;display:flex;flex-direction:column;gap:2px}
+/* Photos en plein écran */
+.pviewer{position:absolute;z-index:5000!important;top:0;left:0;right:0;height:var(--app-h,100%);z-index:2200;background:#000;display:flex;flex-direction:column}
+.pv-top{position:absolute;top:0;left:0;right:0;z-index:2;display:flex;align-items:center;gap:10px;padding:calc(var(--safe-top,0px) + 10px) 12px 10px 16px;background:linear-gradient(rgba(0,0,0,.6),transparent);color:#fff}
+.pv-title{flex:1;font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pv-title small{opacity:.75;font-weight:600;margin-left:6px}
+.pv-close{flex:none;width:40px;height:40px;border-radius:50%;border:0;background:rgba(255,255,255,.22);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.pv-strip{flex:1;display:flex;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scrollbar-width:none}
+.pv-strip::-webkit-scrollbar{display:none}
+.pv-slide{flex:0 0 100%;scroll-snap-align:center;display:flex;align-items:center;justify-content:center}
+.pv-slide img{max-width:100%;max-height:100%;object-fit:contain}
+.gallery-when{position:absolute;left:12px;bottom:46px;z-index:2;display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:12px;background:rgba(0,0,0,.6);color:#fff;font-size:13px;font-weight:700;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.gallery-when{bottom:auto;top:12px;left:12px}

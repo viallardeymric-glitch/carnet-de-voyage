@@ -16,6 +16,9 @@ import { md } from '../ui/md.js';
 import TransitPanel from '../ui/TransitPanel.js';
 import { savePlace, removePlace } from '../lib/trips.js';
 import { tripDays, formatDay } from '../lib/dates.js';
+import TimeField from '../ui/TimeField.js';
+import { openPhotos } from '../ui/PhotoViewer.js';
+import { normTime } from '../lib/dates.js';
 import { Card, Button, Chip, Icon, Subtitle, SafetyBox, Empty } from '../ui/components.js';
 import { actionSheet, confirm } from '../ui/dialogs.js';
 
@@ -113,6 +116,8 @@ export default function PlaceView() {
   </a>`;
 
   const photos = (g?.photos || []).slice(0, 8).map((p) => photoUrl(p.name, 900));
+  const bigPhotos = (g?.photos || []).slice(0, 8).map((p) => photoUrl(p.name, 1600));
+  const planDay = place.day ? tripDays(trip)[place.day - 1] : null;
   if (!photos.length && (wiki?.image || photo)) photos.push(wiki?.image || photo);
   const rating = g?.rating || place.rating;
   const ratings = g?.userRatingCount || place.ratings;
@@ -134,8 +139,9 @@ export default function PlaceView() {
   return html`<div class="page place">
     ${photos.length
       ? html`<div class="gallery-wrap">
-          <div class="gallery">${photos.map((u) => html`<img src=${u} alt="" loading="lazy" />`)}</div>
+          <div class="gallery">${photos.map((u, k) => html`<img src=${u} alt="" loading="lazy" onClick=${() => openPhotos(bigPhotos.length ? bigPhotos : photos, k, place.name)} style="cursor:zoom-in" />`)}</div>
           ${photos.length > 1 ? html`<span class="gallery-count"><${Icon} name="images" /> ${photos.length}</span>` : null}
+          ${planDay ? html`<span class="gallery-when"><${Icon} name="calendar-days" /> ${formatDay(planDay.iso)}${normTime(place.time) ? ` · ${normTime(place.time)}` : ''}</span>` : null}
         </div>`
       : html`<div class="gallery gallery-empty" style=${`--c:${cat.color}`}><${Icon} name=${place.isLodging ? 'bed' : cat.icon} /></div>`}
 
@@ -153,7 +159,8 @@ export default function PlaceView() {
           : null}
       <div class="chips wrap" style="margin-top:8px">
         ${isOpen != null ? html`<span class=${`open-tag ${isOpen ? 'on' : ''}`}>${isOpen ? 'Ouvert maintenant' : 'Fermé'}</span>` : null}
-        ${place.day ? html`<${Chip} label=${`Jour ${place.day}`} icon="calendar-days" active color="var(--navy)" />` : null}
+        ${place.day ? html`<${Chip} label=${`Jour ${place.day}${tripDays(trip)[place.day - 1] ? ` · ${formatDay(tripDays(trip)[place.day - 1].iso)}` : ''}`} icon="calendar-days" active color="var(--navy)" />` : null}
+        ${place.day && place.id ? html`<label class="ptime"><${Icon} name="clock" /><${TimeField} value=${place.time} onSave=${(t) => update({ time: t })} placeholder="Heure ?" /></label>` : null}
         ${place.addedBy && members[place.addedBy] ? html`<${Chip} label=${`Ajouté par ${members[place.addedBy].name}`} />` : null}
       </div>
     </div>

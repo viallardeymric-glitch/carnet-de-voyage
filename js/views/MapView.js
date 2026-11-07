@@ -16,7 +16,7 @@ import { cachedPhoto, findPhoto } from '../lib/photos.js';
 import TransitPanel, { LineBadge } from '../ui/TransitPanel.js';
 import { isOpenNow, loadOpeningHours } from '../lib/openNow.js';
 import { distanceMeters, formatDistance, familyWalkMinutes, bestCenter, circle } from '../lib/geo.js';
-import { tripDays, formatDay, dayColor } from '../lib/dates.js';
+import { tripDays, formatDay, dayColor, normTime } from '../lib/dates.js';
 import { openDirections } from '../lib/routing.js';
 import { savePlace, verifyLodging } from '../lib/trips.js';
 import { Chip, Icon, MemberBadge, Thumb } from '../ui/components.js';
@@ -329,7 +329,9 @@ export default function MapView() {
         const color = p.day ? dayColor(p.day) : p.favorite ? 'var(--pink)' : c.color;
         const n = p.day ? (plan[p.day] || []).indexOf(p) + 1 : 0;
         const badge = p.day ? `<em>${n || '•'}</em>` : p.favorite ? '<em><i class="fa-solid fa-heart"></i></em>' : '';
-        const node = el(`mk-photo ${p.status === 'visited' ? 'done' : ''}`, `<span class="ph"><i class="fa-solid fa-${c.icon}"></i></span>${badge}`, `--c:${color}`);
+        const dd = p.day ? days[p.day - 1] : null;
+        const tm = dd ? `<u class="mtime">${formatDay(dd.iso).split(' ').slice(0, 2).join(' ')}${normTime(p.time) ? ` · ${normTime(p.time)}` : ''}</u>` : '';
+        const node = el(`mk-photo ${p.status === 'visited' ? 'done' : ''}`, `<span class="ph"><i class="fa-solid fa-${c.icon}"></i></span>${badge}${tm}`, `--c:${color}`);
         const ph = node.querySelector('.ph');
         const set = (url) => url && ((ph.style.backgroundImage = `url("${url}")`), ph.classList.add('has'));
         const quick = cachedPhoto(p, 120);
@@ -581,7 +583,9 @@ export default function MapView() {
       const [lon2, lat2] = p.coords[p.coords.length - 1];
       marks.push([el('mk-stop end', `<span>Descendre · ${esc(p.to)}</span>`), lon2, lat2, () => toast(`Descendre à ${p.to} (${p.arr})`)]);
     });
-    if (guide?.to) marks.push([el('mk mk-pin', '<i class="fa-solid fa-flag-checkered"></i>', '--c:var(--danger)'), guide.to.lon, guide.to.lat, null]);
+    // Balade : étapes numérotées.
+    (guide?.stops || []).forEach((st, i) => marks.push([el('mk-stop walkstop', `<b>${i + 1}</b><span>${esc(st.name)}</span>`), st.lon, st.lat, () => toast(`${st.name}${st.info ? ` : ${st.info}` : ''}`)]));
+    if (guide?.to) marks.push([el('mk mk-pin', `<i class="fa-solid fa-${guide.stops ? 'house' : 'flag-checkered'}"></i>`, '--c:var(--danger)'), guide.to.lon, guide.to.lat, null]);
     draw('guide', marks);
     const all = parts.flatMap((p) => p.coords || []);
     if (all.length) {
@@ -601,7 +605,19 @@ export default function MapView() {
     if (follow && me) map.current?.easeTo({ center: [me.lon, me.lat], zoom: Math.max(map.current.getZoom(), 17), duration: 800 });
   }, [follow, me?.lat, me?.lon]);
   // Prochaine étape : l'arrêt où monter tant qu'on n'y est pas, puis l'arrêt où descendre.
+  // Balade : on retient les étapes déjà atteintes (à moins de 50 m).
+  const doneStops = useRef(new Set());
+  useEffect(() => {
+    doneStops.current = new Set();
+  }, [guide]);
+  if (guide?.stops && me) guide.stops.forEach((st, i) => distanceMeters(me, st) < 50 && doneStops.current.add(i));
   const nextStep = (() => {
+    if (guide?.stops) {
+      const i = guide.stops.findIndex((_, k) => !doneStops.current.has(k));
+      if (i < 0) return { txt: `Retour : ${guide.to.name}`, sub: 'Balade terminée, bravo !', d: me ? distanceMeters(me, guide.to) : null };
+      const st = guide.stops[i];
+      return { txt: `Étape ${i + 1}/${guide.stops.length} : ${st.name}`, sub: st.info, d: me ? distanceMeters(me, st) : null };
+    }
     const parts = guide?.route?.parts || [];
     const t = parts.filter((p) => p.type === 'transit' && p.coords?.length);
     if (!t.length) return guide ? { txt: `Marchez jusqu'à ${guide.to.name}`, d: me ? distanceMeters(me, guide.to) : null } : null;
@@ -784,7 +800,9 @@ export default function MapView() {
                 <div class="small muted">${nextStep?.sub || ''}${nextStep?.d != null ? ` · à ${formatDistance(nextStep.d)}` : ''}</div>
               </div>
             </div>
-            <div class="tlines" style="margin-top:8px">${guide.route.parts.map((p) => (p.type === 'transit' ? html`<${LineBadge} p=${p} />` : html`<span class="walkbit"><${Icon} name="person-walking" />${p.min} min</span>`))}</div>
+            ${guide.stops
+              ? html`<div class="small muted" style="margin-top:6px"><${Icon} name="shoe-prints" /> ${guide.title} · ≈ ${guide.route.min} min · ${guide.km ? `${guide.km.toFixed(1).replace('.', ',')} km` : ''}</div>`
+              : html`<div class="tlines" style="margin-top:8px">${guide.route.parts.map((p) => (p.type === 'transit' ? html`<${LineBadge} p=${p} />` : html`<span class="walkbit"><${Icon} name="person-walking" />${p.min} min</span>`))}</div>`}
             <div class="row" style="gap:6px;margin-top:8px">
               ${me ? html`<button class=${`pill ${follow ? 'accent' : ''}`} onClick=${() => setFollow(!follow)}><${Icon} name="location-crosshairs" /> ${follow ? 'Je suis suivi' : 'Me suivre'}</button>` : null}
               <button class="pill" onClick=${endGuide}><${Icon} name="xmark" /> Terminer</button>
@@ -799,7 +817,7 @@ export default function MapView() {
               ${sel.rating ? html`<div class="rate-line"><span class="stars" style=${`--r:${sel.rating}`}></span><b>${sel.rating.toFixed(1)}</b><span class="muted xs">(${sel.ratings.toLocaleString('fr-FR')} avis)</span>${sel.openNow != null ? html`<span class=${`open-tag ${sel.openNow ? 'on' : ''}`}>${sel.openNow ? 'Ouvert' : 'Fermé'}</span>` : null}</div>` : null}
               <div class="muted xs">
                 ${sel.isLodging ? 'Notre hébergement' : sel.kind || categoryById(sel.category).label}
-                ${sel.day ? html` · <b style=${`color:${dayColor(sel.day)}`}>Jour ${sel.day}</b>` : null}
+                ${sel.day ? html` · <b style=${`color:${dayColor(sel.day)}`}>Jour ${sel.day}${days[sel.day - 1] ? ` · ${formatDay(days[sel.day - 1].iso)}` : ''}${normTime(sel.time) ? ` à ${normTime(sel.time)}` : ''}</b>` : null}
                 ${selFromHotel != null ? ` · ${formatDistance(selFromHotel)} de l'hôtel` : ''}
               </div>
               <div class="row" style="margin-top:8px;gap:6px">

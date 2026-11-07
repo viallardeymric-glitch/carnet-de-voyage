@@ -26,7 +26,7 @@ export const ls = {
   },
 };
 
-const CACHE_PREFIXES = ['g:det:', 'g:near:', 'g:hotels:', 'g:health:', 'g:id:', 'photo:', 'transitAI:', 'wiki', 'article'];
+const CACHE_PREFIXES = ['g:det:', 'g:near:', 'g:hotels:', 'g:health:', 'g:id:', 'photo:', 'transitAI:', 'wiki', 'article', 'walks:'];
 function purgeCaches() {
   const keys = [];
   for (let i = 0; i < localStorage.length; i++) {

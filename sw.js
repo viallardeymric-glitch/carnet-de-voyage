@@ -1,5 +1,5 @@
 // Service worker : l'app fonctionne hors-ligne (fichiers de l'app + fonds de carte déjà vus).
-const VERSION = 'cdv-v4.8';
+const VERSION = 'cdv-v4.9';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'icons/apple-touch-icon.png', 'icons/icon-192.png',
@@ -15,7 +15,7 @@ const SHELL = [
   'js/views/MapView.js', 'js/views/PlaceView.js', 'js/views/PlannerView.js', 'js/views/VaultView.js', 'js/views/BudgetView.js',
   'js/views/MoreView.js', 'js/views/ChecklistView.js', 'js/views/EmergencyView.js', 'js/views/JournalView.js',
   'js/views/AssistantView.js', 'js/views/SettingsView.js', 'js/views/TravelersView.js',
-  'js/views/TransitView.js', 'js/views/OfflineView.js', 'js/lib/transit.js', 'js/lib/offline.js', 'js/lib/aiPlanner.js', 'js/ui/TransitPanel.js', 'js/ui/md.js', 'js/lib/arrival.js', 'js/ui/TimeField.js', 'js/ui/TravelLeg.js',
+  'js/views/TransitView.js', 'js/views/OfflineView.js', 'js/lib/transit.js', 'js/lib/offline.js', 'js/lib/aiPlanner.js', 'js/ui/TransitPanel.js', 'js/ui/md.js', 'js/lib/arrival.js', 'js/ui/TimeField.js', 'js/ui/TravelLeg.js', 'js/lib/walks.js', 'js/ui/PhotoViewer.js',
 ];
 const LAZY = ['vendor/firebase.js', 'vendor/opening_hours.js'];
 const TILES = 'cdv-tiles';
