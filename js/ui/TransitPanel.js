@@ -20,7 +20,7 @@ export function showOnMap(route, to) {
 }
 
 // origins : [{ label, point }] — l'utilisateur choisit d'où il part (ma position, l'hôtel…).
-export default function TransitPanel({ origins = [], to, city, plansLinks = true, onShow }) {
+export default function TransitPanel({ origins = [], to, city, plansLinks = true, onShow, walk = false }) {
   const [oi, setOi] = useState(0);
   const from = origins[oi]?.point;
   const fromName = origins[oi]?.label || '';
@@ -36,7 +36,12 @@ export default function TransitPanel({ origins = [], to, city, plansLinks = true
     setErr(null);
     try {
       if (!hasGoogle()) throw Object.assign(new Error('no-key'), { code: 'no-key' });
-      const r = await transitRoutes(from, to);
+      let r = await transitRoutes(from, to).catch((e) => (walk ? [] : Promise.reject(e)));
+      if (walk) {
+        // Pour rejoindre quelqu'un : l'itinéraire à pied d'abord, les transports ensuite.
+        const w = await transitRoutes(from, to, null, 'WALK').catch(() => []);
+        r = [...w.map((x) => ({ ...x, walkOnly: true })), ...r.filter((x) => !x.walkOnly)];
+      }
       setRoutes(r);
       if (!r.length) throw Object.assign(new Error('none'), { code: 'none' });
     } catch (e) {

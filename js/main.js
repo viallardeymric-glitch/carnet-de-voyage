@@ -6,7 +6,7 @@ import { initStore, auth, fb, useDoc } from './core/store.js';
 import { ls, getMembers, consumeInvite, watchAppearance } from './core/config.js';
 import { hasPin, watchAutoLock, markSession } from './core/lock.js';
 import { persistStorage } from './core/vault.js';
-import { AppCtx, TABS, currentRoute, back, useApp } from './core/app.js';
+import { AppCtx, TABS, currentRoute, back, useApp, go } from './core/app.js';
 import { DialogHost, Icon, Spinner } from './ui/components.js';
 import { toast } from './ui/dialogs.js';
 
@@ -145,7 +145,12 @@ function Avatars() {
   const { members, memberId } = useApp();
   return html`<div class="avatars">
     ${Object.values(members).map(
-      (m) => html`<span class=${`av ${m.id === memberId ? 'me' : ''}`} style=${`background:${m.color}`} title=${m.name}>${m.id}</span>`
+      (m) => html`<span
+        class=${`av ${m.id === memberId ? 'me' : 'join'}`}
+        style=${`background:${m.color}`}
+        title=${m.id === memberId ? m.name : `Rejoindre ${m.name}`}
+        onClick=${m.id === memberId ? null : (e) => (e.stopPropagation(), sessionStorage.setItem('cdv-join', '1'), go('carte'), dispatchEvent(new Event('cdv-join')))}
+      >${m.id}</span>`
     )}
   </div>`;
 }

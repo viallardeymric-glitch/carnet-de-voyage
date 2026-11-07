@@ -38,7 +38,7 @@ const mins = (d) => Math.max(1, Math.round(parseInt(d || '0', 10) / 60));
 const hhmm = (iso) => (iso ? new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '');
 
 // Itinéraires en transports (jusqu'à 4 propositions), au départ de maintenant ou d'une heure donnée.
-export async function transitRoutes(from, to, when = null) {
+export async function transitRoutes(from, to, when = null, travelMode = 'TRANSIT') {
   const key = getGoogleKey();
   if (!key) throw Object.assign(new Error('no-key'), { code: 'no-key' });
   const res = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
@@ -47,8 +47,8 @@ export async function transitRoutes(from, to, when = null) {
     body: JSON.stringify({
       origin: { location: { latLng: { latitude: from.lat, longitude: from.lon } } },
       destination: { location: { latLng: { latitude: to.lat, longitude: to.lon } } },
-      travelMode: 'TRANSIT',
-      computeAlternativeRoutes: true,
+      travelMode,
+      computeAlternativeRoutes: travelMode === 'TRANSIT',
       languageCode: 'fr',
       ...(when ? { departureTime: new Date(when).toISOString() } : {}),
     }),

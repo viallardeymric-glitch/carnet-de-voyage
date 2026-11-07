@@ -362,8 +362,8 @@ export default function MapView() {
       const mm = members[o.id];
       if (!mm) return;
       const node = el('mk-person', `<span class="badge" style="width:36px;height:36px;background:${mm.color};font-size:15px">${esc(mm.id)}</span>`);
-      const label = o.self ? `${mm.name} (moi)` : `${mm.name} · ${ago(o.updatedAtMs)}`;
-      items.push([node, o.lon, o.lat, () => toast(label)]);
+      const label = `${mm.name} (moi)`;
+      items.push([node, o.lon, o.lat, o.self ? () => toast(label) : () => joinPartner(o)]);
     });
     draw('people', items);
   }, [ready, me?.lat, me?.lon, others]);
@@ -519,6 +519,32 @@ export default function MapView() {
         : []
     );
   }, [ready, hotelMode, hotels, hotelSel]);
+
+  // Rejoindre l'autre (perdus dans la foule…) : itinéraire à pied vers sa dernière position.
+  const joinPartner = (o) => {
+    sessionStorage.removeItem('cdv-join');
+    const mm = members[o?.id];
+    if (!o || o.lat == null || !mm) return toast("Position de l'autre inconnue : son appli doit être ouverte avec la localisation activée");
+    setSel(null);
+    setHotelMode(false);
+    setRouteFor({ name: mm.name, lat: o.lat, lon: o.lon, isPerson: true, at: o.updatedAtMs });
+    focus(o, 16);
+  };
+  const othersRef = useRef(others);
+  othersRef.current = others;
+  useEffect(() => {
+    let t;
+    const go_ = () => {
+      if (sessionStorage.getItem('cdv-join') !== '1') return;
+      const find = () => othersRef.current.find((x) => x.id === otherMember(memberId));
+      if (find()) return joinPartner(find());
+      clearTimeout(t);
+      t = setTimeout(() => sessionStorage.getItem('cdv-join') === '1' && joinPartner(find()), 3000); // positions pas encore arrivées
+    };
+    go_();
+    addEventListener('cdv-join', go_);
+    return () => (removeEventListener('cdv-join', go_), clearTimeout(t));
+  }, [others.length, ready]);
 
   const startGuide = (route, to) => {
     const g = { route, to: { name: to.name, lat: to.lat, lon: to.lon } };
@@ -700,12 +726,17 @@ export default function MapView() {
     <div class="map-bottom">
       ${routeFor
         ? html`<div class="sheet">
-            <div class="row between mb"><b>Itinéraire vers ${routeFor.name}</b><button class="iconbtn" onClick=${() => setRouteFor(null)} aria-label="Fermer"><${Icon} name="xmark" /></button></div>
+            <div class="row between mb">
+              <div><b>${routeFor.isPerson ? `Rejoindre ${routeFor.name}` : `Itinéraire vers ${routeFor.name}`}</b>
+                ${routeFor.isPerson ? html`<div class="muted xs">Position ${ago(routeFor.at)}${me ? ` · à ${formatDistance(distanceMeters(me, routeFor))}` : ''}</div>` : null}</div>
+              <button class="iconbtn" onClick=${() => setRouteFor(null)} aria-label="Fermer"><${Icon} name="xmark" /></button>
+            </div>
             <${TransitPanel}
               origins=${[
                 ...(me ? [{ label: 'ma position', icon: 'location-crosshairs', point: me }] : []),
-                ...(trip?.lodging && !routeFor.isLodging ? [{ label: "l'hôtel", icon: 'bed', point: trip.lodging }] : []),
+                ...(trip?.lodging && !routeFor.isLodging && !routeFor.isPerson ? [{ label: "l'hôtel", icon: 'bed', point: trip.lodging }] : []),
               ]}
+              walk=${!!routeFor.isPerson}
               to=${routeFor}
               city=${trip?.city?.name}
               plansLinks=${false}
