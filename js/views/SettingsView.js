@@ -168,6 +168,6 @@ export default function SettingsView() {
     <${SafetyBox} title="Installer sur l'écran d'accueil" icon="mobile-screen">
       <p>Dans Safari : bouton Partager <b>⬆︎</b> › « Sur l'écran d'accueil ». L'app s'ouvre alors en plein écran, avec son icône, même hors-ligne.</p>
     </${SafetyBox}>
-    <div class="muted xs center">Carnet de Voyage · version 4.9</div>
+    <div class="muted xs center">Carnet de Voyage · version 4.9.1</div>
   </div>`;
 }

@@ -116,7 +116,8 @@ export default function TravelLeg({ trip, tripId, dir }) {
                       ${plan.note ? html`<div class="muted xs">${plan.note}</div>` : null}
                       ${plan.routes.map(
                         (r, i) => html`<div class="legroute" onClick=${() => setDetail(detail === i ? null : i)}>
-                          <div class="row between"><b>${r.dep} → ${r.arr}</b><span class="muted small">${r.min} min${r.fare ? html` · <b style="color:var(--text)">${r.fare}</b> /pers.` : ''}</span></div>
+                          <div class="row between"><b>${r.start || r.dep} → ${r.end || r.arr}</b><span class="muted small">${r.min} min porte à porte${r.fare ? html` · <b style="color:var(--text)">${r.fare}</b> /pers.` : ''}</span></div>
+                          <div class="muted xs">${dir === 'arrivee' ? `Départ de ${leg.place?.name || 'l’aéroport'} à ${r.start || r.dep}, arrivée à l’hébergement à ${r.end || r.arr}` : `Départ de l’hébergement à ${r.start || r.dep}, arrivée à ${r.end || r.arr}`}${r.parts[0]?.type === 'walk' && r.parts[0].min >= 15 && dir === 'arrivee' ? ` · les ${r.parts[0].min} min de marche du début partent du point central de l’aéroport : depuis votre terminal, c’est souvent bien moins` : ''}.</div>
                           <div class="tlines">${r.parts.map((p) => (p.type === 'transit' ? html`<${LineBadge} p=${p} />` : html`<span class="walkbit"><${Icon} name="person-walking" />${p.min} min</span>`))}</div>
                           ${detail === i
                             ? r.parts.map((p) =>

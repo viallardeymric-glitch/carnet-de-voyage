@@ -45,6 +45,13 @@ function fareText(f) {
   }
 }
 
+function shift(t, m) {
+  const x = /^(\d{1,2}):(\d{2})$/.exec(t || '');
+  if (!x) return t || '';
+  const v = (((+x[1] * 60 + +x[2] + m) % 1440) + 1440) % 1440;
+  return `${String(Math.floor(v / 60)).padStart(2, '0')}:${String(v % 60).padStart(2, '0')}`;
+}
+
 const mins = (d) => Math.max(1, Math.round(parseInt(d || '0', 10) / 60));
 const hhmm = (iso) => (iso ? new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '');
 
@@ -117,6 +124,9 @@ export async function transitRoutes(from, to, when = null, travelMode = 'TRANSIT
       leaveIn: firstT?.depAt ? Math.round((new Date(firstT.depAt) - Date.now()) / 60000) - (parts[0]?.type === 'walk' ? parts[0].min : 0) : null,
       walkOnly: !firstT,
       fare: fareText(r.travelAdvisory?.transitFare),
+      // Porte à porte : on ajoute la marche avant le 1er transport et après le dernier.
+      start: shift(firstT?.dep, -(parts[0]?.type === 'walk' ? parts[0].min : 0)),
+      end: shift(lastT?.arr, parts[parts.length - 1]?.type === 'walk' ? parts[parts.length - 1].min : 0),
     };
   });
 }

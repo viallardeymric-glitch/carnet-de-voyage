@@ -68,7 +68,7 @@ export default function TransitPanel({ origins = [], to, city, plansLinks = true
               <div class="row">
                 <div class="grow">
                   <div class="tlines">${r.parts.map((p) => (p.type === 'transit' ? html`<${LineBadge} p=${p} />` : html`<span class="walkbit"><${Icon} name="person-walking" />${p.min} min</span>`))}</div>
-                  <div class="small muted">${r.walkOnly ? 'À pied' : `${r.dep} → ${r.arr}`}${r.leaveIn != null && r.leaveIn >= 0 ? html` · <b style="color:var(--navy)">partir ${r.leaveIn <= 1 ? 'maintenant' : `dans ${r.leaveIn} min`}</b>` : ''}</div>
+                  <div class="small muted">${r.walkOnly ? 'À pied' : `${r.start || r.dep} → ${r.end || r.arr}`}${r.leaveIn != null && r.leaveIn >= 0 ? html` · <b style="color:var(--navy)">partir ${r.leaveIn <= 1 ? 'maintenant' : `dans ${r.leaveIn} min`}</b>` : ''}</div>
                 </div>
                 <div class="tmin"><b>${r.min}</b><small>min</small></div>
                 <button class="tmap" aria-label="Voir sur la carte" onClick=${(e) => (e.stopPropagation(), onShow ? onShow(r) : showOnMap(r, to))}><${Icon} name="route" /></button>

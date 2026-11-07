@@ -90,17 +90,11 @@ export function keyTime(leg, dir, routes = [], ai = []) {
   const best = routes[0];
   const rec = ai.find((o) => o.recommande) || ai[0];
   if (dir === 'arrivee') {
-    if (best?.arr && normTime(best.arr)) {
-      const lastWalk = best.parts[best.parts.length - 1]?.type === 'walk' ? best.parts[best.parts.length - 1].min : 0;
-      return fromMin(toMin(best.arr) + lastWalk);
-    }
+    if (normTime(best?.end)) return normTime(best.end);
     const dur = best?.min || rec?.duree_min || 45;
     return fromMin(toMin(leg.time) + AFTER[leg.mode] + dur);
   }
-  if (best?.dep && normTime(best.dep)) {
-    const firstWalk = best.parts[0]?.type === 'walk' ? best.parts[0].min : 0;
-    return fromMin(toMin(best.dep) - firstWalk - 10);
-  }
+  if (normTime(best?.start)) return fromMin(toMin(best.start) - 10);
   const dur = best?.min || rec?.duree_min || 45;
   return fromMin(toMin(leg.time) - BEFORE[leg.mode] - dur - 15);
 }
