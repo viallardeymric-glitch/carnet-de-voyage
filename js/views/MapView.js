@@ -6,7 +6,7 @@ import { html, useEffect, useMemo, useRef, useState } from '../../vendor/preact.
 import { useApp, go } from '../core/app.js';
 import { useCollection } from '../core/store.js';
 import { useLiveLocation } from '../core/location.js';
-import { otherMember } from '../core/config.js';
+import { otherMember, ls } from '../core/config.js';
 import { CATEGORIES, categoryById, subById } from '../data/categories.js';
 import { fetchPlaces } from '../lib/places.js';
 import { nearbyGoogle, hasGoogle, searchPlaces, hotelsNear, PRICE } from '../lib/google.js';
@@ -29,7 +29,10 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 const ago = (ms) => {
   if (!ms) return '';
   const m = Math.round((Date.now() - ms) / 60000);
-  return m <= 0 ? "à l'instant" : `il y a ${m} min`;
+  if (m <= 0) return "à l'instant";
+  if (m < 60) return `il y a ${m} min`;
+  const h = Math.round(m / 60);
+  return h < 24 ? `il y a ${h} h` : `il y a ${Math.round(h / 24)} j`;
 };
 
 // La bibliothèque de carte (1 Mo) n'est chargée qu'à la première ouverture de la carte.
@@ -592,11 +595,21 @@ export default function MapView() {
   const gap = me && partner ? distanceMeters(me, partner) : null;
   // Bulles d'info (« Vous êtes ensemble », position refusée) : affichées 8 s, puis masquées
   // jusqu'à ce que la situation change (séparés, éloignés de 500 m de plus…). Un toucher les ferme.
-  const bannerKey = gap == null ? null : gap < 60 ? 'ensemble' : `loin:${Math.round(gap / 500)}`;
+  // Utile seulement : position de l'autre récente (moins de 15 min) et sur place (près de la destination).
+  // « Ensemble » : une fois par jour au plus ; « séparés » : quand on s'éloigne d'au moins 300 m.
+  const shownKeyRef = useRef(null);
+  const fresh = partner?.updatedAtMs && Date.now() - partner.updatedAtMs < 15 * 60000;
+  const onSite = me && trip?.city && distanceMeters(me, trip.city) < 50000;
+  const today = new Date().toISOString().slice(0, 10);
+  const togetherSeen = ls.get('bannerTogether', '') === today;
+  const bannerKey =
+    gap == null || !fresh || !onSite ? null : gap < 60 ? (togetherSeen && shownKeyRef.current !== 'ensemble' ? null : 'ensemble') : gap > 300 ? `loin:${Math.round(gap / 500)}` : null;
   const [shownKey, setShownKey] = useState(null);
   const [hiddenKey, setHiddenKey] = useState(null);
   useEffect(() => {
     if (!bannerKey || bannerKey === shownKey) return undefined;
+    shownKeyRef.current = bannerKey;
+    if (bannerKey === 'ensemble') ls.set('bannerTogether', today);
     setShownKey(bannerKey);
     setHiddenKey(null);
     const t = setTimeout(() => setHiddenKey(bannerKey), 8000);
@@ -654,7 +667,7 @@ export default function MapView() {
             )}
           </div>`
         : null}
-      ${partner && gap != null && hiddenKey !== bannerKey
+      ${bannerKey && hiddenKey !== bannerKey
         ? html`<div class="banner" onClick=${() => setHiddenKey(bannerKey)}>
             <${MemberBadge} member=${members[partner.id]} size=${24} />
             <div class="grow">
