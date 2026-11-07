@@ -189,6 +189,7 @@ export async function hotelsNear(center, radius = 1500) {
 
 // Catégorie de l'app d'après le type Google (pour l'icône et le guide).
 function categoryOf(type = '') {
+  if (/lodging|hotel|campground|hostel|resort|bed_and_breakfast|motel|guest_house|camping/.test(type)) return 'hebergement';
   if (/restaurant|cafe|bakery|food|bar|ice_cream|meal/.test(type)) return 'restaurants';
   if (/museum|art_gallery/.test(type)) return 'musees';
   if (/park|zoo|aquarium|amusement|playground|bowling|theater|cinema|stadium/.test(type)) return 'loisirs';

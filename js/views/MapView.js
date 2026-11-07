@@ -754,7 +754,10 @@ export default function MapView() {
               <div class="row" style="margin-top:8px;gap:6px">
                 <button class="pill" onClick=${() => go('lieu', { place: sel })}><${Icon} name="circle-info" /> Fiche</button>
                 <button class="pill accent" onClick=${() => setRouteFor(sel)}><${Icon} name="route" /> Itinéraire</button>
-                ${!sel.isLodging && !selSaved
+                ${sel.category === 'hebergement' && !sel.isLodging
+                  ? html`<button class="pill" onClick=${() => chooseHotel(sel)}><${Icon} name="bed" /> Notre hôtel</button>`
+                  : null}
+                ${!sel.isLodging && !selSaved && sel.category !== 'hebergement'
                   ? html`<button class="pill" onClick=${() => (savePlace(tripId, sel, {}, memberId), toast('Ajouté à la boîte à idées'))}><${Icon} name="plus" /> Garder</button>`
                   : null}
               </div>
