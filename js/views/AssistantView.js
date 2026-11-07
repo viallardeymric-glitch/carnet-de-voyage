@@ -24,6 +24,7 @@ export default function AssistantView() {
   const [thinking, setThinking] = useState(false);
   const hasKey = !!getApiKey();
   const [walks, setWalks] = useState(null);
+  const [where, setWhere] = useState('');
   const [walkBusy, setWalkBusy] = useState(false);
   const [walkLen, setWalkLen] = useState(60);
   const [going, setGoing] = useState(null);
@@ -62,7 +63,12 @@ export default function AssistantView() {
 
   const run = async () => {
     setData(null);
-    const pos = (await getPosition()) || trip?.lodging || trip?.city;
+    // Sur place : ma position. Sinon (encore à la maison) : la destination, pas la météo de chez nous.
+    const me = await getPosition();
+    const ref = trip?.lodging || trip?.city;
+    const here = me && ref && distanceMeters(me, ref) < 30000;
+    const pos = here ? me : ref;
+    setWhere(here ? 'ici, maintenant' : `à ${trip?.city?.name || 'destination'}, maintenant`);
     let w = null;
     try {
       w = await getWeather(pos);
@@ -102,6 +108,7 @@ export default function AssistantView() {
           <div class="row">
             <${Icon} name=${weather.icon} style="font-size:34px;color:var(--cyan)" />
             <div>
+              <div style="font-size:13px;font-weight:700;color:rgba(255,255,255,.85)">Météo ${where}</div>
               <div style="font-size:22px;font-weight:800">${weather.temp}°C · ${weather.label}</div>
               <div style="color:rgba(255,255,255,.85)">Min ${weather.min}° / max ${weather.max}°${weather.rainChance != null ? ` · pluie ${weather.rainChance} %` : ''}</div>
             </div>
