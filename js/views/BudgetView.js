@@ -2,7 +2,7 @@
 import { html, useEffect, useState } from '../../vendor/preact.js';
 import { useApp } from '../core/app.js';
 import { store, useCollection } from '../core/store.js';
-import { getRates, convert, formatMoney } from '../lib/currency.js';
+import { getRates, convert, formatMoney, formatRate, sym, currencyForCountry } from '../lib/currency.js';
 import { toISO, formatDay, tripDays } from '../lib/dates.js';
 import { Card, Button, Chip, Icon, Subtitle, Empty } from '../ui/components.js';
 import { confirm, toast, prompt } from '../ui/dialogs.js';
@@ -22,7 +22,8 @@ const catOf = (id) => CATS.find((c) => c.id === id) || CATS[CATS.length - 1];
 export default function BudgetView() {
   const { trip, tripId, path, memberId } = useApp();
   const { items: expenses } = useCollection(path('expenses'), (a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
-  const local = trip?.city?.currency || 'EUR';
+  // Devise du pays du voyage (recalculée : un voyage créé avant l'ajout du pays à la liste suit aussi).
+  const local = (trip?.city?.countryCode && currencyForCountry(trip.city.countryCode) !== 'EUR' ? currencyForCountry(trip.city.countryCode) : trip?.city?.currency) || 'EUR';
   const [rates, setRates] = useState({ rates: { EUR: 1 } });
   const [adding, setAdding] = useState(false);
   const [amount, setAmount] = useState('');
@@ -95,7 +96,7 @@ export default function BudgetView() {
       ? html`<${Card}>
           <div class="row between">
             <div class="subtitle" style="margin:0">Convertisseur</div>
-            <div class="muted xs">1 € = ${rates.rates[local]?.toFixed(4) || '?'} ${local}${rates.offline ? ' (hors ligne)' : ''}</div>
+            <div class="muted xs">1 € = ${formatRate(rates.rates[local])} ${sym(local)}${sym(local) !== local ? ` (${local})` : ''}${rates.offline ? ' (hors ligne)' : ''}</div>
           </div>
           <div class="row mt">
             <input class="input grow" style="margin:0" inputmode="decimal" value=${convAmount} onInput=${(e) => setConvAmount(e.target.value)} />

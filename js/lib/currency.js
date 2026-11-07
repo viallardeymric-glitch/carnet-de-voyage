@@ -7,16 +7,37 @@ const COUNTRY_CURRENCY = {
   TR: 'TRY', MA: 'MAD', TN: 'TND', EG: 'EGP', AE: 'AED', IL: 'ILS', CN: 'CNY', HK: 'HKD',
   SG: 'SGD', KR: 'KRW', TH: 'THB', IN: 'INR', MX: 'MXN', BR: 'BRL', ZA: 'ZAR', AL: 'ALL',
   RS: 'RSD', BA: 'BAM', MK: 'MKD', GE: 'GEL', IE: 'EUR',
+  // Hors zone euro, ailleurs dans le monde
+  VN: 'VND', ID: 'IDR', MY: 'MYR', PH: 'PHP', TW: 'TWD', LK: 'LKR', NP: 'NPR', KH: 'KHR', LA: 'LAK', MV: 'MVR',
+  JO: 'JOD', OM: 'OMR', QA: 'QAR', SA: 'SAR', BH: 'BHD', KW: 'KWD', LB: 'LBP', AM: 'AMD', AZ: 'AZN', UA: 'UAH',
+  MD: 'MDL', BY: 'BYN', RU: 'RUB', KZ: 'KZT', UZ: 'UZS', DZ: 'DZD', SN: 'XOF', CI: 'XOF', BJ: 'XOF', TG: 'XOF',
+  ML: 'XOF', BF: 'XOF', NE: 'XOF', CM: 'XAF', GA: 'XAF', CG: 'XAF', TD: 'XAF', CF: 'XAF', GQ: 'XAF', KE: 'KES',
+  TZ: 'TZS', UG: 'UGX', RW: 'RWF', ET: 'ETB', MU: 'MUR', SC: 'SCR', MG: 'MGA', NA: 'NAD', BW: 'BWP', CV: 'CVE',
+  AR: 'ARS', CL: 'CLP', CO: 'COP', PE: 'PEN', UY: 'UYU', PY: 'PYG', BO: 'BOB', CR: 'CRC', DO: 'DOP', CU: 'CUP',
+  JM: 'JMD', GT: 'GTQ', PA: 'PAB', EC: 'USD', SV: 'USD', PR: 'USD', BS: 'BSD', BB: 'BBD', TT: 'TTD',
+  PF: 'XPF', NC: 'XPF', WF: 'XPF', FJ: 'FJD', MO: 'MOP', MN: 'MNT', BD: 'BDT', PK: 'PKR', GI: 'GIP', SM: 'EUR',
+  VA: 'EUR', MC: 'EUR', AD: 'EUR', ME: 'EUR', XK: 'EUR', LI: 'CHF', FO: 'DKK', GL: 'DKK',
 };
 
 export const currencyForCountry = (cc) => COUNTRY_CURRENCY[cc] || 'EUR';
 
-export const CURRENCY_SYMBOL = { EUR: '€', GBP: '£', USD: '$', CHF: 'CHF', JPY: '¥' };
+export const CURRENCY_SYMBOL = { EUR: '€', GBP: '£', USD: '$', CHF: 'CHF', JPY: '¥', CNY: '¥', KRW: '₩', INR: '₹', THB: '฿', TRY: '₺', ILS: '₪', VND: '₫', PHP: '₱', UAH: '₴' };
 export const sym = (c) => CURRENCY_SYMBOL[c] || c;
 
+// Devises sans centimes au quotidien (yen, dong, roupie indonésienne, franc CFA…).
+const NO_CENTS = new Set(['JPY', 'KRW', 'VND', 'IDR', 'CLP', 'ISK', 'HUF', 'XOF', 'XAF', 'XPF', 'UGX', 'PYG', 'COP', 'LAK', 'KHR', 'UZS', 'MGA', 'RWF', 'TZS', 'LBP', 'IRR', 'MNT']);
+
 export function formatMoney(amount, currency = 'EUR') {
-  const n = Number(amount || 0).toFixed(2).replace('.', ',');
-  return currency === 'EUR' ? `${n} €` : `${n} ${sym(currency)}`;
+  const d = NO_CENTS.has(currency) ? 0 : 2;
+  const n = Number(amount || 0).toLocaleString('fr-FR', { minimumFractionDigits: d, maximumFractionDigits: d }).replace(/\u202f|\u00a0/g, ' ');
+  return `${n} ${currency === 'EUR' ? '€' : sym(currency)}`;
+}
+
+// « 1 € = 0,8712 £ » ou « 1 € = 28 000 ₫ » : précision adaptée à la taille du taux.
+export function formatRate(rate) {
+  if (!rate) return '?';
+  const d = rate >= 100 ? 0 : rate >= 10 ? 2 : 4;
+  return rate.toLocaleString('fr-FR', { minimumFractionDigits: d, maximumFractionDigits: d }).replace(/\u202f|\u00a0/g, ' ');
 }
 
 const KEY = 'rates:EUR';
@@ -35,17 +56,13 @@ export async function getRates() {
       return { rates: j.rates, date: j.time_last_update_utc?.slice(5, 16) };
     },
   ];
-  for (const src of sources) {
-    try {
-      const res = await src();
-      if (res.rates) {
-        res.rates.EUR = 1;
-        ls.set(KEY, res);
-        return { ...res, offline: false };
-      }
-    } catch {
-      // on essaie la source suivante
-    }
+  // Les deux sources sont fusionnées : la BCE (≈ 30 devises officielles) complétée par
+  // open.er-api (≈ 160 devises : dong, roupie, peso…), pour que chaque pays ait son taux.
+  const got = (await Promise.all(sources.map((src) => src().catch(() => null)))).filter((r) => r?.rates);
+  if (got.length) {
+    const res = { rates: { ...(got[1]?.rates || {}), ...got[0].rates, EUR: 1 }, date: got[0].date };
+    ls.set(KEY, res);
+    return { ...res, offline: false };
   }
   const cached = ls.get(KEY);
   if (cached) return { ...cached, offline: true };
