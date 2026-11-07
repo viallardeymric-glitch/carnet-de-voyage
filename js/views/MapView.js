@@ -409,10 +409,7 @@ export default function MapView() {
 
   // Recherche libre : Google (lieux, monuments, commerces), sinon OpenStreetMap.
   const qTimer = useRef(null);
-  const runFind = async (text) => {
-    const t = text.trim();
-    if (t.length < 2) return setFound(null);
-    setFindBusy(true);
+  const lookup = async (t) => {
     const near = map.current ? (({ lng, lat }) => ({ lat, lon: lng }))(map.current.getCenter()) : base;
     let list = [];
     try {
@@ -427,8 +424,28 @@ export default function MapView() {
         list = [];
       }
     }
-    setFound(list.map((p) => ({ ...p, d: me ? distanceMeters(me, p) : distanceMeters(base, p) })));
+    return list.map((p) => ({ ...p, d: me ? distanceMeters(me, p) : distanceMeters(base, p) }));
+  };
+  const runFind = async (text) => {
+    const t = text.trim();
+    if (t.length < 2) return setFound(null);
+    setFindBusy(true);
+    setFound(await lookup(t));
     setFindBusy(false);
+  };
+  // Recherche dans la fenêtre « Itinéraire ».
+  const [mq, setMq] = useState('');
+  const [mres, setMres] = useState(null);
+  const [mfind, setMfind] = useState(false);
+  const multiFind = async (e) => {
+    e.preventDefault();
+    const t = mq.trim();
+    if (t.length < 2) return;
+    setMfind(true);
+    const list = await lookup(t);
+    setMres(list.slice(0, 6));
+    if (!list.length) toast('Aucun lieu trouvé');
+    setMfind(false);
   };
   const onFindInput = (v) => {
     setQ(v);
@@ -800,6 +817,16 @@ export default function MapView() {
       ${multi && !sel
         ? html`<div class="sheet multisheet">
             <div class="row between"><b><${Icon} name="route" /> Itinéraire à plusieurs étapes</b><button class="iconbtn" onClick=${() => setMulti(null)} aria-label="Fermer"><${Icon} name="xmark" /></button></div>
+            <form class="findbar mfind" onSubmit=${multiFind}>
+              <${Icon} name="magnifying-glass" />
+              <input placeholder="Ajouter un lieu : Big Ben, un musée…" value=${mq} onInput=${(e) => (setMq(e.target.value), !e.target.value && setMres(null))} enterkeyhint="search" />
+              ${mfind ? html`<${Icon} name="spinner" cls="fa-spin" />` : mq ? html`<button type="button" class="iconbtn" onClick=${() => (setMq(''), setMres(null))} aria-label="Effacer"><${Icon} name="xmark" /></button>` : null}
+            </form>
+            ${mres?.length
+              ? html`<div class="mres">${mres.map(
+                  (r) => html`<button onClick=${() => (addStop(r), setMres(null), setMq(''))}><${Icon} name="plus" /><span class="grow ellipsis"><b>${r.name}</b><small class="muted">${[r.kind, r.address || r.tags?.street].filter(Boolean).join(' · ')}</small></span>${r.d != null ? html`<small class="muted">${formatDistance(r.d)}</small>` : null}</button>`
+                )}</div>`
+              : null}
             <div class="chips">
               <${Chip} label="Depuis l’hôtel" icon="bed" active=${multi.from === 'hotel'} onClick=${() => setMulti({ ...multi, from: 'hotel' })} />
               ${me ? html`<${Chip} label="Depuis ma position" icon="location-crosshairs" active=${multi.from === 'me'} onClick=${() => setMulti({ ...multi, from: 'me' })} />` : null}

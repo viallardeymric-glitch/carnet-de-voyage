@@ -525,3 +525,9 @@ html, body { height: var(--app-h, 100%); overflow: hidden; background: var(--car
 .mstops li{display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:12px;background:var(--bg);font-size:14px;font-weight:600}
 .mstops .iconbtn{width:30px;height:30px}
 .mnum{flex:none;width:24px;height:24px;border-radius:50%;background:#1E6FD9;color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.mfind{margin:0;position:static}
+.mres{display:flex;flex-direction:column;gap:4px}
+.mres button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:8px 10px;border:1px solid var(--border);border-radius:12px;background:var(--card);color:var(--text);font:inherit;cursor:pointer}
+.mres button>i{color:var(--cyan)}
+.mres small{display:block;font-size:12px}
+.mfind{box-shadow:none;border:1px solid var(--border);background:var(--bg)}
