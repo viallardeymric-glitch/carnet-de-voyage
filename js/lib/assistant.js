@@ -101,22 +101,61 @@ const timed = (ms) => {
 };
 const AI_TIMEOUT = 25000;
 
+// Lit le JSON renvoyé par l'IA, même entouré de texte ou coupé en plein milieu (réponse trop longue) :
+// on garde tout ce qui est complet et on referme proprement.
+export function parseLooseJSON(text) {
+  const t = String(text || '').replace(/```(?:json)?/gi, '');
+  const start = t.indexOf('{');
+  if (start < 0) throw new Error('no-json');
+  const body = t.slice(start);
+  try {
+    return JSON.parse(body.slice(0, body.lastIndexOf('}') + 1));
+  } catch {
+    /* réparation ci-dessous */
+  }
+  const stack = [];
+  let inStr = false;
+  let esc = false;
+  let cut = -1;
+  let cutStack = null;
+  for (let i = 0; i < body.length; i++) {
+    const c = body[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === '\\') esc = true;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') inStr = true;
+    else if (c === '{' || c === '[') stack.push(c);
+    else if (c === '}' || c === ']') {
+      stack.pop();
+      cut = i + 1;
+      cutStack = [...stack];
+      if (!stack.length) break;
+    }
+  }
+  if (cut < 0) throw new Error('no-json');
+  const closers = (cutStack || []).reverse().map((c) => (c === '{' ? '}' : ']')).join('');
+  return JSON.parse(body.slice(0, cut).replace(/,\s*$/, '') + closers);
+}
+
 async function readError(res) {
   const d = await res.json().catch(() => ({}));
   return new Error(d?.error?.message || `Erreur ${res.status}`);
 }
 
-async function viaGemini(key, prompt, { system = SYSTEM, max = 800 } = {}) {
+async function viaGemini(key, prompt, { system = SYSTEM, max = 800, json = false, timeout = AI_TIMEOUT } = {}) {
   let last;
   for (const model of ['gemini-2.5-flash', 'gemini-flash-latest']) {
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`, {
       method: 'POST',
-      signal: timed(AI_TIMEOUT),
+      signal: timed(timeout),
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: system }] },
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: { maxOutputTokens: max + 2000, temperature: 0.6, ...(model === 'gemini-2.5-flash' ? { thinkingConfig: { thinkingBudget: 0 } } : {}) },
+        generationConfig: { maxOutputTokens: max + 2000, temperature: 0.6, ...(json ? { responseMimeType: 'application/json' } : {}), ...(model === 'gemini-2.5-flash' ? { thinkingConfig: { thinkingBudget: 0 } } : {}) },
       }),
     });
     if (res.ok) {
@@ -129,16 +168,17 @@ async function viaGemini(key, prompt, { system = SYSTEM, max = 800 } = {}) {
   throw last;
 }
 
-async function viaGroq(key, prompt, { system = SYSTEM, max = 800 } = {}) {
+async function viaGroq(key, prompt, { system = SYSTEM, max = 800, json = false, timeout = AI_TIMEOUT } = {}) {
   let last;
   for (const model of ['openai/gpt-oss-120b', 'llama-3.3-70b-versatile']) {
     const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
-      signal: timed(AI_TIMEOUT),
+      signal: timed(timeout),
       headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
       body: JSON.stringify({
         model,
         max_tokens: max,
+        ...(json ? { response_format: { type: 'json_object' } } : {}),
         messages: [
           { role: 'system', content: system },
           { role: 'user', content: prompt },
@@ -152,10 +192,10 @@ async function viaGroq(key, prompt, { system = SYSTEM, max = 800 } = {}) {
   throw last;
 }
 
-async function viaClaude(key, prompt, { system = SYSTEM, max = 800 } = {}) {
+async function viaClaude(key, prompt, { system = SYSTEM, max = 800, timeout = AI_TIMEOUT } = {}) {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
-    signal: timed(AI_TIMEOUT),
+    signal: timed(timeout),
     headers: {
       'content-type': 'application/json',
       'x-api-key': key,
@@ -173,7 +213,8 @@ async function viaClaude(key, prompt, { system = SYSTEM, max = 800 } = {}) {
 // si le premier est indisponible ou a atteint son quota gratuit).
 export const hasAI = () => Object.values(getAiKeys()).some(Boolean);
 
-export async function askAI({ question, context, system, max }) {
+// parse : si la réponse d'un fournisseur est illisible, on essaie le suivant (au lieu d'échouer).
+export async function askAI({ question, context, system, max, json = false, parse = null, timeout = AI_TIMEOUT }) {
   const keys = getAiKeys();
   const order = [
     ['gemini', viaGemini],
@@ -185,7 +226,8 @@ export async function askAI({ question, context, system, max }) {
   let last;
   for (const [id, fn] of order) {
     try {
-      return await fn(keys[id], prompt, { system: system || SYSTEM, max: max || 800 });
+      const text = await fn(keys[id], prompt, { system: system || SYSTEM, max: max || 800, json, timeout });
+      return parse ? parse(text) : text;
     } catch (e) {
       last = e.name === 'AbortError' ? new Error(`${id} ne répond pas (réseau lent ?). Réessayez.`) : e;
     }

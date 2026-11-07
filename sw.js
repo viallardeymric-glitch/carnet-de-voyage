@@ -1,5 +1,5 @@
 // Service worker : l'app fonctionne hors-ligne (fichiers de l'app + fonds de carte déjà vus).
-const VERSION = 'cdv-v5.0.1';
+const VERSION = 'cdv-v5.0.2';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'icons/apple-touch-icon.png', 'icons/icon-192.png',

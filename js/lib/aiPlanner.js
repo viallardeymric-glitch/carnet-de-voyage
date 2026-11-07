@@ -1,6 +1,6 @@
 // Planning proposé par l'IA : selon les dates, la ville, la famille (âges, grossesse, chien…)
 // et les idées déjà notées. Renvoie une proposition à valider avant de l'appliquer.
-import { askAI } from './assistant.js';
+import { askAI, parseLooseJSON } from './assistant.js';
 import { getParty, describeParty } from './party.js';
 import { tripDays, formatDay, normTime } from './dates.js';
 import { ls } from '../core/config.js';
@@ -27,50 +27,83 @@ Idées déjà notées (réutilise-les en priorité avec leur id, surtout les fav
 Règles : rythme adapté au groupe (enfants, grossesse : pauses, pas de longues marches, une pause repos l'après-midi si besoin), 2 à 4 activités par jour regroupées par quartier pour limiter les trajets, premier et dernier jour plus légers (arrivée / départ), tiens compte des jours fériés, fermetures (lundi / mardi pour certains musées) et de la saison (activité couverte prévue en cas de pluie), un repas conseillé par jour adapté aux enfants (indique-le comme un lieu, catégorie restaurants).`;
 }
 
-function parsePlan(text, trip, places) {
+// Lecture tolérante (réponse coupée, texte autour) puis nettoyage : jours valides, heures « 09:30 »…
+function parsePlan(text, trip, places, { allowEmpty = false } = {}) {
   const days = tripDays(trip);
-  const json = (text || '').replace(/^[\s\S]*?(\{)/, '$1').replace(/\}[^}]*$/, '}');
   let plan;
   try {
-    plan = JSON.parse(json);
+    plan = parseLooseJSON(text);
   } catch {
     throw new Error("L'IA a répondu dans un format inattendu, réessayez.");
   }
-  if (!Array.isArray(plan.days) || !plan.days.length) throw new Error("L'IA n'a pas proposé de jours, réessayez.");
+  if (!Array.isArray(plan.days) || (!plan.days.length && !allowEmpty)) throw new Error("L'IA n'a pas proposé de jours, réessayez.");
   const ids = new Set(places.map((p) => p.id));
   plan.days = plan.days
-    .filter((d) => d.day >= 1 && d.day <= days.length)
+    .filter((d) => d && +d.day >= 1 && +d.day <= days.length)
     .map((d) => ({
       ...d,
+      day: +d.day,
       items: (d.items || [])
         .filter((i) => i?.name)
         .map((i) => ({ ...i, time: normTime(i.time), id: ids.has(i.id) ? i.id : null, category: CATS.includes(i.category) ? i.category : 'monuments' }))
         .sort((a, b) => (a.time || '99').localeCompare(b.time || '99')),
     }))
     .sort((a, b) => a.day - b.day);
+  if (!plan.days.length && !allowEmpty) throw new Error("L'IA n'a pas proposé de jours, réessayez.");
   return plan;
 }
 
-export async function proposePlanning(trip, places, wishes = '') {
-  const question = `Propose un planning de voyage jour par jour.
+const CHUNK = 5; // jours demandés à la fois : une réponse courte, donc complète et rapide
+
+export async function proposePlanning(trip, places, wishes = '', onProgress) {
+  const all = tripDays(trip);
+  const out = { days: [], tips: [] };
+  const part = all.length > CHUNK;
+  const ask = async (from, to) => {
+    onProgress?.(from, to, all.length);
+    const done = out.days.flatMap((d) => d.items.map((i) => `J${d.day} ${i.name}`));
+    const question = `Propose un planning de voyage jour par jour${part ? ` (voyage de ${all.length} jours ; ne planifie ICI QUE les jours ${from} à ${to})` : ''}.
 ${context(trip, places)}
-${wishes ? `Envies particulières : ${wishes}\n` : ''}Réponds UNIQUEMENT en JSON strict, sans texte autour :
+${wishes ? `Envies particulières : ${wishes}\n` : ''}${done.length ? `Déjà prévu les autres jours (ne le répète pas, varie les activités) : ${done.join(' ; ').slice(0, 1500)}\n` : ''}Réponds UNIQUEMENT en JSON strict, sans texte autour${part ? `, avec seulement les jours ${from} à ${to}` : ''} :
 ${JSON_SHAPE}`;
-  return parsePlan(await askAI({ question, system: SYSTEM, max: 2600 }), trip, places);
+    const plan = await askAI({ question, system: SYSTEM, max: 500 + (to - from + 1) * 450, json: true, timeout: 45000, parse: (t) => parsePlan(t, trip, places, { allowEmpty: true }) });
+    out.days.push(...plan.days.filter((d) => d.day >= from && d.day <= to && d.items.length && !out.days.some((x) => x.day === d.day)));
+    if (!out.tips.length && plan.tips?.length) out.tips = plan.tips.slice(0, 3);
+  };
+  for (let from = 1; from <= all.length; from += CHUNK) await ask(from, Math.min(all.length, from + CHUNK - 1));
+  // Jours manquants (réponse coupée) : on les redemande une fois.
+  const missing = all.map((d) => d.index).filter((i) => !out.days.some((d) => d.day === i));
+  for (let k = 0; k < missing.length; k += CHUNK) {
+    const grp = missing.slice(k, k + CHUNK);
+    try {
+      await ask(grp[0], grp[grp.length - 1]);
+    } catch {
+      /* on garde ce qu'on a */
+    }
+  }
+  if (!out.days.length) throw new Error("L'IA n'a pas proposé de jours, réessayez.");
+  out.days.sort((a, b) => a.day - b.day);
+  return out;
 }
 
 // Ajustement par petites demandes (« alléger le jour 2 », « Big Ben vers 17 h », « fish & chips mardi »…) :
-// l'IA repart du planning actuel et ne modifie que ce qui est demandé.
+// l'IA repart du planning actuel et ne renvoie QUE les jours qu'elle change (réponse courte, même pour
+// un long séjour) ; on les remplace dans le planning.
 export async function refinePlanning(trip, places, plan, request, history = []) {
   const compact = { days: plan.days.map((d) => ({ day: d.day, theme: d.theme, items: d.items.map(({ name, id, category, time, note }) => ({ name, id, category, time, note })) })), tips: plan.tips || [] };
   const question = `Voici le planning de voyage actuel, que la famille aime presque tel quel :
 ${JSON.stringify(compact)}
 ${context(trip, places)}
 ${history.length ? `Demandes déjà prises en compte (à conserver) : ${history.map((h) => `« ${h} »`).join(' ; ')}\n` : ''}NOUVELLE DEMANDE à appliquer : « ${request} »
-Modifie UNIQUEMENT ce que la demande concerne (et ce qu'il faut décaler en conséquence, horaires compris). Garde tout le reste identique : mêmes lieux, mêmes jours, mêmes heures, mêmes id.
-Réponds UNIQUEMENT avec le planning complet mis à jour, en JSON strict, sans texte autour :
+Modifie UNIQUEMENT ce que la demande concerne (et ce qu'il faut décaler en conséquence, horaires compris). Garde tout le reste identique : mêmes lieux, mêmes heures, mêmes id.
+Réponds UNIQUEMENT en JSON strict, sans texte autour, avec SEULEMENT les jours modifiés (chaque jour modifié en entier, avec tous ses lieux) :
 ${JSON_SHAPE}`;
-  return parsePlan(await askAI({ question, system: SYSTEM, max: 3000 }), trip, places);
+  const changed = await askAI({ question, system: SYSTEM, max: 3500, json: true, timeout: 45000, parse: (t) => parsePlan(t, trip, places) });
+  const byDay = new Map(changed.days.map((d) => [d.day, d]));
+  return {
+    days: [...plan.days.filter((d) => !byDay.has(d.day)), ...changed.days].sort((a, b) => a.day - b.day),
+    tips: changed.tips?.length ? changed.tips : plan.tips || [],
+  };
 }
 
 // Applique la proposition : les idées existantes sont placées dans leur jour, les nouveaux lieux

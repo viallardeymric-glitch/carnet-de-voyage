@@ -2,7 +2,7 @@
 // l'aéroport ou la gare (et l'inverse), avec horaires, durée et tarifs ; puis l'heure d'arrivée
 // réelle à l'hébergement, qui sert au planning.
 import { transitRoutes } from './transit.js';
-import { askAI, hasAI } from './assistant.js';
+import { askAI, hasAI, parseLooseJSON } from './assistant.js';
 import { getParty, describeParty } from './party.js';
 import { hasGoogle, utcOffsetOf } from './google.js';
 import { normTime } from './dates.js';
@@ -48,7 +48,7 @@ Si tu n'es pas sûr d'un chiffre, mets « environ ». Réponds UNIQUEMENT en JSO
 {"options":[{"nom":"Thameslink","type":"train|metro|bus|navette|taxi|vtc|tram","recommande":true,"duree_min":45,"prix_famille":"environ 30 £ (35 €)","prix_adulte":"12 £","frequence":"toutes les 15 min","horaires":"premier 05:00, dernier 23:30 ; vers 12:45 : 12:52, 13:07","achat":"carte sans contact aux portiques","astuce":"…"}]}`;
   const text = await askAI({ question, system: 'Tu connais très bien les transports entre aéroports, gares et centres-villes. Tu es précis, prudent et concret.', max: 1400 });
   try {
-    const j = JSON.parse((text || '').replace(/^[\s\S]*?(\{)/, '$1').replace(/\}[^}]*$/, '}'));
+    const j = parseLooseJSON(text);
     return (j.options || []).filter((o) => o?.nom).slice(0, 5);
   } catch {
     return [];

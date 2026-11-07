@@ -37,6 +37,7 @@ export default function PlannerView() {
   const [wishes, setWishes] = useState('');
   const [proposal, setProposal] = useState(null);
   const [aiBusy, setAiBusy] = useState(false);
+  const [aiStep, setAiStep] = useState('');
   const [applying, setApplying] = useState(null);
   const [ask, setAsk] = useState('');
   const [chat, setChat] = useState([]); // demandes d'ajustement déjà faites
@@ -87,7 +88,7 @@ export default function PlannerView() {
     setAiBusy(true);
     setProposal(null);
     try {
-      setProposal(await proposePlanning(trip, places, wishes));
+      setProposal(await proposePlanning(trip, places, wishes, (a, b, n) => setAiStep(n > 5 ? `jours ${a} à ${b} sur ${n}` : '')));
       setChat([]);
       setFromCurrent(false);
     } catch (e) {
@@ -204,7 +205,7 @@ export default function PlannerView() {
           </div>
           ${fromCurrent ? html`<div class="muted small mb">Voici votre planning actuel. Demandez juste ce qu’il faut changer : l’IA garde tout le reste, puis vous validez.</div>` : null}
           ${fromCurrent ? null : html`<textarea class="input" placeholder="Envies (facultatif) : ex. Harry Potter, marchés de Noël, pas de musée le dimanche…" value=${wishes} onInput=${(e) => setWishes(e.target.value)}></textarea>`}
-          ${!proposal ? html`<${Button} title=${aiBusy ? 'L’IA prépare votre planning…' : 'Proposer un planning'} icon="wand-magic-sparkles" variant="accent" loading=${aiBusy} onClick=${propose} />` : null}
+          ${!proposal ? html`<${Button} title=${aiBusy ? `L’IA prépare votre planning${aiStep ? ` (${aiStep})` : ''}…` : 'Proposer un planning'} icon="wand-magic-sparkles" variant="accent" loading=${aiBusy} onClick=${propose} />` : null}
           ${proposal
             ? html`<div class="mt">
                 ${proposal.days.map(

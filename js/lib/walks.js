@@ -1,6 +1,6 @@
 // Petites balades à pied proposées par l'IA, autour de ma position (ou de l'hébergement) :
 // quand on ne sait pas quoi faire. Chaque balade est tracée à pied et suivie sur la carte.
-import { askAI, hasAI } from './assistant.js';
+import { askAI, hasAI, parseLooseJSON } from './assistant.js';
 import { getParty, describeParty } from './party.js';
 import { hasGoogle, searchPlaces } from './google.js';
 import { searchAddress } from './places.js';
@@ -23,7 +23,7 @@ Réponds UNIQUEMENT en JSON strict :
   const text = await askAI({ question, system: 'Tu es un guide local qui connaît chaque rue. Tu ne proposes que des lieux réels et proches.', max: 1600 });
   let j;
   try {
-    j = JSON.parse((text || '').replace(/^[\s\S]*?(\{)/, '$1').replace(/\}[^}]*$/, '}'));
+    j = parseLooseJSON(text);
   } catch {
     throw new Error("L'IA a répondu dans un format inattendu, réessayez.");
   }
