@@ -34,7 +34,7 @@ const norm = (t) => (t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u
 function isLodgingLike(name, trip) {
   const n = norm(name);
   const l = norm(trip.lodging?.name);
-  if (l && (n.includes(l) || (n.length > 8 && l.includes(n)))) return true;
+  if (l && n.includes(l)) return true; // (pas l'inverse : « Tower Bridge » est un monument, même si l'hôtel s'appelle « Premier Inn Tower Bridge »)
   return /\bcamping\b|\bmobil home\b|\bairbnb\b|\bgite\b/.test(n);
 }
 
