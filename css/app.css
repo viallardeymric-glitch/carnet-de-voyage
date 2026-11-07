@@ -531,3 +531,7 @@ html, body { height: var(--app-h, 100%); overflow: hidden; background: var(--car
 .mres button>i{color:var(--cyan)}
 .mres small{display:block;font-size:12px}
 .mfind{box-shadow:none;border:1px solid var(--border);background:var(--bg)}
+.farwarn{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:4px;padding:6px 8px;border-radius:10px;background:color-mix(in srgb,var(--danger,#E5484D) 14%,var(--card));color:var(--text);font-size:12px;font-weight:600}
+.farwarn>i{color:var(--danger,#E5484D)}
+.farwarn button{border:0;border-radius:8px;padding:4px 10px;background:var(--danger,#E5484D);color:#fff;font:inherit;font-weight:700}
+.farwarn.big{margin:10px 0 0;font-size:13px;padding:10px}

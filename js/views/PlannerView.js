@@ -10,7 +10,8 @@ import { savePlace, reorder, removePlace } from '../lib/trips.js';
 import { searchAddress } from '../lib/places.js';
 import { Card, Button, Chip, Icon, Subtitle, SafetyBox, Empty, Spinner, Thumb } from '../ui/components.js';
 import { actionSheet, toast, confirm } from '../ui/dialogs.js';
-import { proposePlanning, applyPlanning, refinePlanning } from '../lib/aiPlanner.js';
+import { proposePlanning, applyPlanning, refinePlanning, locateNear } from '../lib/aiPlanner.js';
+import { distanceMeters } from '../lib/geo.js';
 import { store } from '../core/store.js';
 import TimeField from '../ui/TimeField.js';
 import TravelLeg from '../ui/TravelLeg.js';
@@ -38,6 +39,7 @@ export default function PlannerView() {
   const [proposal, setProposal] = useState(null);
   const [aiBusy, setAiBusy] = useState(false);
   const [aiStep, setAiStep] = useState('');
+  const [fixing, setFixing] = useState(false);
   const [applying, setApplying] = useState(null);
   const [ask, setAsk] = useState('');
   const [chat, setChat] = useState([]); // demandes d'ajustement déjà faites
@@ -134,6 +136,19 @@ export default function PlannerView() {
       toast(err.message);
     }
     setRefining(false);
+  };
+  // Lieu placé très loin de l'hébergement (homonyme dans une autre région / un autre pays).
+  const home = trip.lodging?.lat ? trip.lodging : trip.city;
+  const farKm = (p) => (p.lat != null && home?.lat != null ? Math.round(distanceMeters(home, p) / 1000) : 0);
+  const fixPlace = async (p) => {
+    const f = await locateNear(p.name, trip);
+    if (f) {
+      await savePlace(tripId, p, { lat: f.lat, lon: f.lon, googleId: f.googleId || null, gphoto: f.gphoto || null, tags: f.tags || {}, ...(f.rating ? { rating: f.rating, ratings: f.ratings } : {}) });
+      toast(`Replacé : ${f.name}, à ${Math.round(distanceMeters(home, f) / 1000)} km`);
+    } else {
+      await savePlace(tripId, p, { lat: null, lon: null, googleId: null, gphoto: null });
+      toast('Introuvable sur place : position retirée (renommez-le ou supprimez-le)');
+    }
   };
   const setTripTime = (k, v) => store.update(`trips/${tripId}`, { [k]: normTime(v) });
   // Nouvelle heure d'un lieu : on l'enregistre puis on remet la journée dans l'ordre des heures
@@ -237,6 +252,13 @@ export default function PlannerView() {
           ? html`<b>Modifier mon planning avec l'IA</b><small>Par chat : alléger un jour, changer une heure, ajouter un resto…</small>`
           : html`<b>Proposer un planning avec l'IA</b><small>Selon vos dates, la ville et votre famille</small>`}</span><${Icon} name="chevron-right" /></button>`}
 
+    ${(() => {
+      const far = places.filter((p) => farKm(p) > 40);
+      return far.length
+        ? html`<div class="farwarn big"><${Icon} name="triangle-exclamation" /><span class="grow">${far.length} lieu${far.length > 1 ? 'x' : ''} placé${far.length > 1 ? 's' : ''} loin de l’hébergement (homonymes ailleurs) : ${far.map((p) => p.name).slice(0, 4).join(', ')}${far.length > 4 ? '…' : ''}</span>
+            <button disabled=${fixing} onClick=${async () => { setFixing(true); for (const p of far) await fixPlace(p); setFixing(false); }}>${fixing ? 'Correction…' : 'Tout corriger'}</button></div>`
+        : null;
+    })()}
     <div class="chips wrap" style="margin:12px 0">
       <${Chip} label=${`Idées (${ideas.length})`} icon="lightbulb" active=${sel === 0} onClick=${() => setSelected(0)} color="var(--warning)" />
       ${days.map((d) => html`<${Chip} label=${`J${d.index} · ${formatDay(d.iso)}`} active=${sel === d.index} onClick=${() => setSelected(d.index)} color=${dayColor(d.index)} />`)}
@@ -292,6 +314,10 @@ export default function PlannerView() {
                   <${Icon} name="clock" />
                   <${TimeField} value=${p.time} onSave=${(t) => setPlaceTime(p, t)} placeholder="Heure ?" />
                 </label>`
+              : null}
+            ${farKm(p) > 40
+              ? html`<div class="farwarn" onClick=${(e) => e.stopPropagation()}><${Icon} name="triangle-exclamation" /> Placé à ${farKm(p)} km de l’hébergement : sûrement le mauvais lieu
+                  <button onClick=${() => fixPlace(p)}>Corriger</button></div>`
               : null}
             ${p.aiNote && sel ? html`<div class="xs" style="color:var(--muted);margin-top:2px"><${Icon} name="wand-magic-sparkles" /> ${p.aiNote}</div>` : null}
           </div>

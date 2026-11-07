@@ -9,6 +9,7 @@ import { searchAddress } from './places.js';
 import { savePlace } from './trips.js';
 import { legsText } from './arrival.js';
 import { store } from '../core/store.js';
+import { distanceMeters } from './geo.js';
 
 const CATS = ['monuments', 'musees', 'loisirs', 'restaurants', 'shopping', 'pluie'];
 
@@ -24,7 +25,41 @@ function context(trip, places) {
 Jours : ${days.map((d) => `Jour ${d.index} = ${formatDay(d.iso)} ${d.iso}`).join(' ; ')}.
 ${trip.arrivalTime ? `ARRIVÉE à l'hébergement le jour 1 à ${trip.arrivalTime} : aucune activité avant ${trip.arrivalTime} (prévois le temps de poser les valises), la première activité commence au plus tôt 30 à 60 min après, près de l'hébergement.\n` : 'Jour 1 = jour d’arrivée : commence tranquillement.\n'}${trip.departureTime ? `DÉPART le jour ${last} : il faut QUITTER l'hébergement à ${trip.departureTime} (bagages) : aucune activité qui finit après ${trip.departureTime} moins 30 min, rien de loin de l'hébergement ce jour-là.\n` : ''}${legsText(trip) ? `Transport : ${legsText(trip)} N'ajoute PAS le trajet aéroport / gare dans les activités (il est déjà prévu).\n` : ''}Voyageurs : ${describeParty(party)}${ls.get('partyNotes', '') ? ` Notes : ${ls.get('partyNotes', '')}` : ''}
 Idées déjà notées (réutilise-les en priorité avec leur id, surtout les favoris) : ${JSON.stringify(ideas).slice(0, 3000)}
-Règles : rythme adapté au groupe (enfants, grossesse : pauses, pas de longues marches, une pause repos l'après-midi si besoin), 2 à 4 activités par jour regroupées par quartier pour limiter les trajets, premier et dernier jour plus légers (arrivée / départ), tiens compte des jours fériés, fermetures (lundi / mardi pour certains musées) et de la saison (activité couverte prévue en cas de pluie), un repas conseillé par jour adapté aux enfants (indique-le comme un lieu, catégorie restaurants).`;
+Règles : rythme adapté au groupe (enfants, grossesse : pauses, pas de longues marches, une pause repos l'après-midi si besoin), 2 à 4 activités par jour regroupées par quartier pour limiter les trajets, premier et dernier jour plus légers (arrivée / départ), tiens compte des jours fériés, fermetures (lundi / mardi pour certains musées) et de la saison (activité couverte prévue en cas de pluie), un repas conseillé par jour adapté aux enfants (indique-le comme un lieu, catégorie restaurants).
+TRÈS IMPORTANT : tous les lieux doivent se trouver à ${trip.city?.name} ou tout près (moins de 20 km de l'hébergement, sans traverser la mer ni changer de pays), sauf si les envies demandent explicitement une excursion. Donne des noms précis et réels de lieux de ${trip.city?.name} (nom complet, pas un nom générique). N'ajoute JAMAIS l'hébergement ni un autre camping / hôtel comme activité : l'installation et le rangement des bagages ne sont pas des activités.`;
+}
+
+// L'IA place parfois l'hébergement (ou un camping voisin) comme activité « s'installer » : on l'écarte.
+const norm = (t) => (t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+function isLodgingLike(name, trip) {
+  const n = norm(name);
+  const l = norm(trip.lodging?.name);
+  if (l && (n.includes(l) || (n.length > 8 && l.includes(n)))) return true;
+  return /\bcamping\b|\bmobil home\b|\bairbnb\b|\bgite\b/.test(n);
+}
+
+// Cherche un lieu proposé par l'IA SUR PLACE : un homonyme à l'autre bout du pays (ou en Angleterre)
+// est refusé. Rien trouvé dans le rayon → null (le lieu reste sans position plutôt que faux).
+export async function locateNear(name, trip, maxKm = 25) {
+  const near = trip.lodging?.lat ? trip.lodging : trip.city;
+  const ok = (p) => p?.lat != null && distanceMeters(near, p) <= maxKm * 1000;
+  if (hasGoogle()) {
+    for (const q of [`${name} ${trip.city?.name || ''}`, name]) {
+      try {
+        const hit = (await searchPlaces(q, near)).find(ok);
+        if (hit) return hit;
+      } catch {
+        /* essai suivant */
+      }
+    }
+  }
+  try {
+    const r = (await searchAddress(`${name} ${trip.city?.name || ''}`, trip.city)).find(ok) || (await searchAddress(name, trip.city)).find(ok);
+    if (r) return { name, lat: r.lat, lon: r.lon, tags: { street: r.address?.split(',').slice(0, 2).join(',') || '' } };
+  } catch {
+    /* introuvable */
+  }
+  return null;
 }
 
 // Lecture tolérante (réponse coupée, texte autour) puis nettoyage : jours valides, heures « 09:30 »…
@@ -44,7 +79,7 @@ function parsePlan(text, trip, places, { allowEmpty = false } = {}) {
       ...d,
       day: +d.day,
       items: (d.items || [])
-        .filter((i) => i?.name)
+        .filter((i) => i?.name && !isLodgingLike(i.name, trip))
         .map((i) => ({ ...i, time: normTime(i.time), id: ids.has(i.id) ? i.id : null, category: CATS.includes(i.category) ? i.category : 'monuments' }))
         .sort((a, b) => (a.time || '99').localeCompare(b.time || '99')),
     }))
@@ -110,7 +145,6 @@ ${JSON_SHAPE}`;
 // sont cherchés (Google, sinon OpenStreetMap) puis ajoutés au jour.
 export async function applyPlanning(trip, tripId, places, plan, memberId, onProgress, { unplanMissing = false } = {}) {
   const byId = new Map(places.map((p) => [p.id, p]));
-  const near = trip.lodging || trip.city;
   const total = plan.days.reduce((a, d) => a + d.items.length, 0);
   let done = 0;
   for (const d of plan.days) {
@@ -119,20 +153,7 @@ export async function applyPlanning(trip, tripId, places, plan, memberId, onProg
       const patch = { day: d.day, order: order++, time: it.time || null, aiNote: it.note || null };
       if (it.id && byId.has(it.id)) await savePlace(tripId, byId.get(it.id), patch);
       else {
-        let found = null;
-        try {
-          if (hasGoogle()) found = (await searchPlaces(`${it.name} ${trip.city?.name || ''}`, near))[0] || null;
-        } catch {
-          found = null;
-        }
-        if (!found) {
-          try {
-            const r = (await searchAddress(it.name, trip.city))[0];
-            if (r) found = { name: it.name, lat: r.lat, lon: r.lon, tags: { street: r.address?.split(',').slice(0, 2).join(',') || '' } };
-          } catch {
-            found = null;
-          }
-        }
+        const found = await locateNear(it.name, trip);
         await savePlace(tripId, { ...(found || { name: it.name, lat: null, lon: null, tags: {} }), name: found?.name || it.name, category: it.category }, patch, memberId);
       }
       onProgress?.(++done, total);
