@@ -142,6 +142,9 @@ export function parseLooseJSON(text) {
 
 async function readError(res) {
   const d = await res.json().catch(() => ({}));
+  if (res.status === 429) return new Error('Limite gratuite de l’IA atteinte pour le moment : réessayez dans une minute.');
+  if (res.status >= 500) return new Error('Le service d’IA est surchargé : réessayez dans un instant.');
+  if (res.status === 401 || res.status === 403) return new Error('Clé IA refusée : vérifiez-la dans Réglages.');
   return new Error(d?.error?.message || `Erreur ${res.status}`);
 }
 
@@ -177,7 +180,9 @@ async function viaGroq(key, prompt, { system = SYSTEM, max = 800, json = false, 
       headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
       body: JSON.stringify({
         model,
-        max_tokens: max,
+        // gpt-oss « réfléchit » avant de répondre : effort bas = réponse rapide, et de la marge
+        // pour que la réflexion ne mange pas la réponse (sinon réponse vide).
+        ...(model.startsWith('openai/') ? { reasoning_effort: 'low', max_tokens: max + 1500 } : { max_tokens: max }),
         ...(json ? { response_format: { type: 'json_object' } } : {}),
         messages: [
           { role: 'system', content: system },
@@ -214,7 +219,9 @@ async function viaClaude(key, prompt, { system = SYSTEM, max = 800, timeout = AI
 export const hasAI = () => Object.values(getAiKeys()).some(Boolean);
 
 // parse : si la réponse d'un fournisseur est illisible, on essaie le suivant (au lieu d'échouer).
-export async function askAI({ question, context, system, max, json = false, parse = null, timeout = AI_TIMEOUT }) {
+// Rapidité : si le premier fournisseur tarde (hedge), le suivant est lancé en parallèle et la
+// première réponse valable gagne. Une réponse vide compte comme un échec.
+export async function askAI({ question, context, system, max, json = false, parse = null, timeout = AI_TIMEOUT, hedge }) {
   const keys = getAiKeys();
   const order = [
     ['gemini', viaGemini],
@@ -223,15 +230,43 @@ export async function askAI({ question, context, system, max, json = false, pars
   ].filter(([id]) => keys[id]);
   if (!order.length) throw new Error("Ajoutez une clé Gemini ou Groq (gratuites) dans Réglages pour activer l'IA.");
   const prompt = context ? `Contexte : ${JSON.stringify(context)}\n\nQuestion : ${question}` : question;
-  let last;
-  for (const [id, fn] of order) {
-    try {
-      const text = await fn(keys[id], prompt, { system: system || SYSTEM, max: max || 800, json, timeout });
-      return parse ? parse(text) : text;
-    } catch (e) {
-      last = e.name === 'AbortError' ? new Error(`${id} ne répond pas (réseau lent ?). Réessayez.`) : e;
-    }
-  }
-  throw last;
+  const wait = hedge ?? ((max || 800) > 2000 ? 25000 : 9000);
+  return new Promise((resolve, reject) => {
+    let next = 0;
+    let running = 0;
+    let done = false;
+    let last = null;
+    let timer = null;
+    const launch = () => {
+      if (done || next >= order.length) return;
+      const [id, fn] = order[next++];
+      running++;
+      clearTimeout(timer);
+      timer = setTimeout(launch, wait); // trop lent : on lance aussi le suivant
+      fn(keys[id], prompt, { system: system || SYSTEM, max: max || 800, json, timeout })
+        .then((text) => {
+          if (!String(text || '').trim()) throw new Error(`${id} : réponse vide`);
+          return parse ? parse(text) : text;
+        })
+        .then((out) => {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          resolve(out);
+        })
+        .catch((e) => {
+          last = e.name === 'AbortError' ? new Error(`${id} ne répond pas (réseau lent ?). Réessayez.`) : e;
+          running--;
+          if (done) return;
+          if (next < order.length) launch(); // échec : le suivant tout de suite
+          else if (!running) {
+            done = true;
+            clearTimeout(timer);
+            reject(last);
+          }
+        });
+    };
+    launch();
+  });
 }
 export const askClaude = askAI;

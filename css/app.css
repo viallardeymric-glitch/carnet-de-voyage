@@ -536,3 +536,6 @@ html, body { height: var(--app-h, 100%); overflow: hidden; background: var(--car
 .farwarn button{border:0;border-radius:8px;padding:4px 10px;background:var(--danger,#E5484D);color:#fff;font:inherit;font-weight:700}
 .farwarn.big{margin:10px 0 0;font-size:13px;padding:10px}
 .farwarn.nopos{background:color-mix(in srgb,var(--cyan) 12%,var(--card))}.farwarn.nopos>i{color:var(--cyan)}.farwarn.nopos button{background:var(--cyan)}
+
+/* Balades : petit spinner en ligne */
+.spinner.small { width: 18px; height: 18px; border-width: 2px; margin: 0 8px 0 0; flex: none; }

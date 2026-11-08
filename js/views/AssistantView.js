@@ -11,7 +11,6 @@ import { categoryById } from '../data/categories.js';
 import { formatDistance } from '../lib/geo.js';
 import { Card, Button, Chip, Icon, Subtitle, Spinner, Thumb } from '../ui/components.js';
 import { toast } from '../ui/dialogs.js';
-import { proposeWalks, buildWalk } from '../lib/walks.js';
 import { distanceMeters } from '../lib/geo.js';
 
 export default function AssistantView() {
@@ -23,43 +22,7 @@ export default function AssistantView() {
   const [answer, setAnswer] = useState('');
   const [thinking, setThinking] = useState(false);
   const hasKey = !!getApiKey();
-  const [walks, setWalks] = useState(null);
   const [where, setWhere] = useState('');
-  const [walkBusy, setWalkBusy] = useState(false);
-  const [walkLen, setWalkLen] = useState(60);
-  const [going, setGoing] = useState(null);
-  const [from, setFrom] = useState(null);
-
-  // Point de départ : ma position si je suis sur place, sinon l'hébergement.
-  const startPoint = async () => {
-    const me = await getPosition();
-    const ref = trip?.lodging || trip?.city;
-    if (me && ref && distanceMeters(me, ref) < 30000) return { name: 'Ma position', lat: me.lat, lon: me.lon };
-    return trip?.lodging ? { name: trip.lodging.name, lat: trip.lodging.lat, lon: trip.lodging.lon } : { name: trip.city.name, lat: trip.city.lat, lon: trip.city.lon };
-  };
-  const findWalks = async (len = walkLen, fresh = false) => {
-    setWalkBusy(true);
-    setWalks(null);
-    try {
-      const st = await startPoint();
-      setFrom(st);
-      setWalks(await proposeWalks(trip, st, { weather, minutes: len, fresh }));
-    } catch (e) {
-      toast(e.message);
-    }
-    setWalkBusy(false);
-  };
-  const startWalk = async (w, i) => {
-    setGoing(i);
-    try {
-      const g = await buildWalk(w, from, trip.city);
-      sessionStorage.setItem('cdv-guide', JSON.stringify(g));
-      go('carte');
-    } catch (e) {
-      toast(e.message);
-    }
-    setGoing(null);
-  };
 
   const run = async () => {
     setData(null);
@@ -139,23 +102,7 @@ export default function AssistantView() {
           <${Button} title="Actualiser" icon="rotate" variant="ghost" onClick=${run} />`
       : null}
 
-    <${Subtitle}>Une petite balade à pied ?</${Subtitle}>
-    <${Card}>
-      <div class="muted small mb">Rien de prévu ? L’IA propose 3 boucles faciles autour de vous${from ? ` (départ : ${from.name})` : ''}, puis la carte vous guide étape par étape.</div>
-      <div class="chips mb">${[30, 60, 90].map((m) => html`<${Chip} label=${m === 90 ? '1 h 30' : m === 60 ? '1 h' : '30 min'} active=${walkLen === m} onClick=${() => (setWalkLen(m), walks && findWalks(m))} />`)}</div>
-      ${!walks ? html`<${Button} title=${walkBusy ? 'L’IA cherche de jolies balades…' : 'Proposer des balades'} icon="shoe-prints" variant="accent" loading=${walkBusy} onClick=${() => findWalks()} />` : null}
-      ${walks?.map(
-        (w, i) => html`<div class="walk">
-          <div class="row between"><b>${w.titre}</b><span class="muted small">≈ ${w.duree_min || walkLen} min</span></div>
-          ${w.ambiance ? html`<div class="small">${w.ambiance}</div>` : null}
-          <ol class="walksteps">${w.etapes.map((e) => html`<li><b>${e.nom}</b>${e.info ? html` · <span class="muted">${e.info}</span>` : null}</li>`)}</ol>
-          ${w.pause ? html`<div class="xs"><${Icon} name="mug-hot" style="color:var(--cyan)" /> ${w.pause}</div>` : null}
-          ${w.conseil ? html`<div class="xs muted"><${Icon} name="child" /> ${w.conseil}</div>` : null}
-          <${Button} title=${going === i ? 'Préparation du trajet…' : 'C’est parti : voir sur la carte'} icon="map-location-dot" small loading=${going === i} onClick=${() => startWalk(w, i)} />
-        </div>`
-      )}
-      ${walks ? html`<${Button} title="Autres idées" icon="rotate" variant="ghost" small onClick=${() => findWalks(walkLen, true)} loading=${walkBusy} />` : null}
-    </${Card}>
+    <button class="ai-cta" style="margin:10px 0" onClick=${() => go('balades')}><${Icon} name="shoe-prints" /><span><b>Une petite balade à pied ?</b><small>3 boucles faciles autour de vous, guidées sur la carte</small></span><${Icon} name="chevron-right" /></button>
 
     <${Subtitle}>Demander à l'IA</${Subtitle}>
     ${hasKey

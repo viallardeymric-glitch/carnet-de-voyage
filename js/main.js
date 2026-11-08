@@ -29,6 +29,7 @@ import JournalView from './views/JournalView.js';
 import AssistantView from './views/AssistantView.js';
 import SettingsView from './views/SettingsView.js';
 import TravelersView from './views/TravelersView.js';
+import WalksView from './views/WalksView.js';
 
 const SCREENS = {
   carte: { view: MapView, title: (t) => t?.city?.name || 'Carte' },
@@ -44,6 +45,7 @@ const SCREENS = {
   urgences: { view: EmergencyView, title: () => 'Urgences & santé', sub: true },
   journal: { view: JournalView, title: () => 'Journal de bord', sub: true },
   assistant: { view: AssistantView, title: () => 'Assistant', sub: true },
+  balades: { view: WalksView, title: () => 'Balades à pied', sub: true },
   voyageurs: { view: TravelersView, title: () => 'Voyageurs', sub: true },
   reglages: { view: SettingsView, title: () => 'Réglages', sub: true },
 };

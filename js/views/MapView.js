@@ -772,6 +772,7 @@ export default function MapView() {
       <div class="chips">
         <${Chip} label="Rechercher" icon="magnifying-glass" active=${finding} onClick=${() => setFinding(!finding)} />
         <${Chip} label="Itinéraire" icon="route" active=${!!multi} onClick=${() => (multi ? setMulti(null) : (endGuide(), setRouteFor(null), setMulti({ stops: [], mode: 'walk', back: false, from: me && distanceMeters(me, base) < 30000 ? 'me' : 'hotel' })))} />
+        <${Chip} label="Balade" icon="shoe-prints" onClick=${() => go('balades')} />
         <${Chip} label="Hôtel idéal" icon="hotel" active=${hotelMode} onClick=${() => (hotelMode ? exitHotelMode() : enterHotelMode())} />
         <${Chip} label="Ouvert maintenant" icon="clock" active=${openOnly} onClick=${() => setOpenOnly(!openOnly)} color="var(--success)" />
         ${CATEGORIES.map((c) => html`<${Chip} label=${c.label} icon=${c.icon} active=${category === c.id} color=${c.color} onClick=${() => pickCategory(c.id)} />`)}
