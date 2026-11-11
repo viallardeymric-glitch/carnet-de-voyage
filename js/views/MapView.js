@@ -288,6 +288,71 @@ export default function MapView() {
     src.setData({ type: 'FeatureCollection', features });
   }, [plan, day, ready, trip?.lodging]);
 
+  // Sur chaque trait du parcours : distance et durée (à pied jusqu'à 2 km, sinon en transports).
+  // D'abord une estimation immédiate, puis les vraies valeurs Google (gardées en mémoire).
+  const [legInfo, setLegInfo] = useState({});
+  const legs = useMemo(() => {
+    const h = trip?.lodging?.lat != null ? { lat: trip.lodging.lat, lon: trip.lodging.lon } : null;
+    const out = [];
+    Object.entries(plan)
+      .filter(([d]) => day !== -1 && (!day || Number(d) === day))
+      .forEach(([d, list]) => {
+        const pts = [...(h ? [h] : []), ...list.map((p) => ({ lat: p.lat, lon: p.lon })), ...(h ? [h] : [])];
+        for (let i = 0; i < pts.length - 1; i++) {
+          const a = pts[i];
+          const b = pts[i + 1];
+          const m = distanceMeters(a, b);
+          if (m < 60) continue;
+          out.push({ key: `${a.lat.toFixed(4)},${a.lon.toFixed(4)}>${b.lat.toFixed(4)},${b.lon.toFixed(4)}`, a, b, m, color: dayColor(Number(d)) });
+        }
+      });
+    return out;
+  }, [plan, day, trip?.lodging]);
+  useEffect(() => {
+    if (!hasGoogle() || !legs.length) return undefined;
+    let alive = true;
+    (async () => {
+      for (const l of legs) {
+        if (!alive) return;
+        const ck = `legline:${l.key}`;
+        let v = ls.get(ck);
+        if (!v) {
+          try {
+            const walk = l.m <= 2000;
+            const r = (await transitRoutes(l.a, l.b, null, walk ? 'WALK' : 'TRANSIT'))[0];
+            if (!r) continue;
+            const meters = r.parts.reduce((s, x) => s + (x.m || 0), 0);
+            v = { min: r.min, m: walk && meters ? meters : null, mode: walk ? 'walk' : 'transit' };
+            ls.set(ck, v);
+          } catch {
+            continue;
+          }
+        }
+        setLegInfo((o) => (o[l.key] ? o : { ...o, [l.key]: v }));
+      }
+    })();
+    return () => (alive = false);
+  }, [legs]);
+  useEffect(() => {
+    if (!ready) return;
+    draw(
+      'legs',
+      legs.map((l) => {
+        const g = legInfo[l.key];
+        // Sans réponse Google : estimation à pied (rythme famille), marquée « ≈ ».
+        const walk = !g || g.mode === 'walk';
+        const km = `${g?.m ? '' : '≈ '}${formatDistance(g?.m || Math.round(l.m * 1.3))}`;
+        const min = g?.min ?? familyWalkMinutes(l.m);
+        const node = el(
+          'mk-leg',
+          `<i class="fa-solid fa-${walk ? 'person-walking' : 'bus'}"></i>${km} · ${min} min`,
+          `--c:${l.color}`
+        );
+        return [node, (l.a.lon + l.b.lon) / 2, (l.a.lat + l.b.lat) / 2];
+      })
+    );
+  }, [ready, legs, legInfo]);
+
   // Marqueurs, par groupe : un groupe n'est redessiné que si ses propres données changent
   // (la position GPS qui bouge ne redessine plus tous les lieux).
   const groups = useRef({});
@@ -933,7 +998,7 @@ export default function MapView() {
                 ${sel.day ? html` · <b style=${`color:${dayColor(sel.day)}`}>Jour ${sel.day}${days[sel.day - 1] ? ` · ${formatDay(days[sel.day - 1].iso)}` : ''}${normTime(sel.time) ? ` à ${normTime(sel.time)}` : ''}</b>` : null}
                 ${selFromHotel != null ? ` · ${formatDistance(selFromHotel)} de l'hôtel` : ''}
               </div>
-              <div class="row" style="margin-top:8px;gap:6px">
+              <div class="peek-actions">
                 <button class="pill" onClick=${() => go('lieu', { place: sel })}><${Icon} name="circle-info" /> Fiche</button>
                 ${multi
                   ? html`<button class="pill accent" onClick=${() => addStop(sel)}><${Icon} name="plus" /> Ajouter à l’itinéraire</button>`
