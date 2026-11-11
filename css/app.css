@@ -547,3 +547,12 @@ html, body { height: var(--app-h, 100%); overflow: hidden; background: var(--car
 /* Boutons de la fiche rapide : passent à la ligne au lieu de sortir de l'écran */
 .peek-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .peek-actions .pill { margin: 0; }
+
+/* Calculatrice du budget */
+.calcpad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 10px; }
+.calcpad .ck { border: 1px solid var(--border); border-radius: 14px; padding: 12px 0; font: inherit; font-size: 19px; font-weight: 700; background: var(--bg); color: var(--text); cursor: pointer; }
+.calcpad .ck:active { transform: scale(.96); }
+.calcpad .ck.op { color: var(--cyan); }
+.calcpad .ck.clr { color: var(--danger); }
+.calcpad .ck:last-child { background: var(--cyan); border-color: var(--cyan); color: #fff; }
+.calc-input { font-size: 18px; font-weight: 700; }

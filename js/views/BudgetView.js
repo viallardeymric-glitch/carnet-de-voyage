@@ -3,6 +3,10 @@ import { html, useEffect, useState } from '../../vendor/preact.js';
 import { useApp } from '../core/app.js';
 import { store, useCollection } from '../core/store.js';
 import { getRates, convert, formatMoney, formatRate, sym, currencyForCountry } from '../lib/currency.js';
+import { calc, isCalc } from '../lib/calc.js';
+import { ls } from '../core/config.js';
+
+const KEYS = ['C', '(', ')', '÷', '7', '8', '9', '×', '4', '5', '6', '−', '1', '2', '3', '+', ',', '0', '⌫', '='];
 import { toISO, formatDay, tripDays } from '../lib/dates.js';
 import { Card, Button, Chip, Icon, Subtitle, Empty } from '../ui/components.js';
 import { confirm, toast, prompt } from '../ui/dialogs.js';
@@ -32,6 +36,17 @@ export default function BudgetView() {
   const [cat, setCat] = useState('repas');
   const [convAmount, setConvAmount] = useState('10');
   const [toEur, setToEur] = useState(true);
+  const [pad, setPad] = useState(ls.get('calcPad', true));
+  // Touches de la calculatrice (pas de clavier iPhone : les opérations sont toujours là).
+  const press = (k) =>
+    setConvAmount((t) => {
+      t = String(t || '');
+      if (k === 'C') return '';
+      if (k === '⌫') return t.slice(0, -1);
+      if (k === '=') return calc(t) == null ? t : String(calc(t)).replace('.', ',');
+      if (t === '0' && /\d/.test(k)) return k;
+      return t + k;
+    });
   const cur = currency || local;
 
   useEffect(() => {
@@ -39,7 +54,7 @@ export default function BudgetView() {
   }, []);
 
   const add = async () => {
-    const value = Number(String(amount).replace(',', '.'));
+    const value = calc(amount); // « 12,50 + 8 » accepté aussi
     if (!value) return;
     const eur = convert(value, cur, 'EUR', rates.rates);
     if (eur == null) return toast('Taux indisponible : connectez-vous une fois à Internet.');
@@ -75,7 +90,7 @@ export default function BudgetView() {
     await store.update(`trips/${tripId}`, { budget: n > 0 ? Math.round(n) : null });
   };
   const byCat = CATS.map((c) => ({ ...c, sum: expenses.filter((e) => e.category === c.id).reduce((s, e) => s + (Number(e.amountEur) || 0), 0) })).filter((c) => c.sum > 0);
-  const convValue = Number(String(convAmount).replace(',', '.')) || 0;
+  const convValue = calc(convAmount) || 0;
   const converted = toEur ? convert(convValue, local, 'EUR', rates.rates) : convert(convValue, 'EUR', local, rates.rates);
 
   return html`<div class="page">
@@ -92,20 +107,26 @@ export default function BudgetView() {
       ${total > 0 ? html`<div class="small" style="margin-top:4px;opacity:.9">≈ ${formatMoney(total / spentDays)} par jour${planned ? ` · prévu ${formatMoney(planned / nDays)} par jour` : ''}</div>` : null}
     </${Card}>
 
-    ${local !== 'EUR'
-      ? html`<${Card}>
-          <div class="row between">
-            <div class="subtitle" style="margin:0">Convertisseur</div>
-            <div class="muted xs">1 € = ${formatRate(rates.rates[local])} ${sym(local)}${sym(local) !== local ? ` (${local})` : ''}${rates.offline ? ' (hors ligne)' : ''}</div>
-          </div>
-          <div class="row mt">
-            <input class="input grow" style="margin:0" inputmode="decimal" value=${convAmount} onInput=${(e) => setConvAmount(e.target.value)} />
-            <button class="iconbtn" style="color:var(--cyan);font-size:22px" onClick=${() => setToEur(!toEur)} aria-label="Inverser"><${Icon} name="right-left" /></button>
-            <div class="grow bold" style="font-size:18px">${converted != null ? formatMoney(converted, toEur ? 'EUR' : local) : '–'}</div>
-          </div>
-          <div class="muted xs mt">${toEur ? `${local} → EUR` : `EUR → ${local}`}</div>
-        </${Card}>`
-      : null}
+    <${Card}>
+      <div class="row between">
+        <div class="subtitle" style="margin:0">${local !== 'EUR' ? 'Convertisseur et calculs' : 'Calculatrice'}</div>
+        ${local !== 'EUR' ? html`<div class="muted xs">1 € = ${formatRate(rates.rates[local])} ${sym(local)}${sym(local) !== local ? ` (${local})` : ''}${rates.offline ? ' (hors ligne)' : ''}</div>` : null}
+      </div>
+      <div class="row mt">
+        <input class="input grow calc-input" style="margin:0" inputmode=${pad ? 'none' : 'decimal'} readonly=${pad} value=${convAmount} onInput=${(e) => setConvAmount(e.target.value)} />
+        ${local !== 'EUR'
+          ? html`<button class="iconbtn" style="color:var(--cyan);font-size:22px" onClick=${() => setToEur(!toEur)} aria-label="Inverser"><${Icon} name="right-left" /></button>
+              <div class="grow bold" style="font-size:18px">${converted != null ? formatMoney(converted, toEur ? 'EUR' : local) : '–'}</div>`
+          : null}
+      </div>
+      <div class="row between mt">
+        <div class="muted xs">${isCalc(convAmount) ? html`<b style="color:var(--text)">= ${calc(convAmount) == null ? '…' : formatMoney(calc(convAmount), local !== 'EUR' && toEur ? local : 'EUR')}</b>${local !== 'EUR' ? ' · ' : ''}` : ''}${local !== 'EUR' ? (toEur ? `${local} → EUR` : `EUR → ${local}`) : ''}</div>
+        <button class="linkbtn" onClick=${() => (setPad(!pad), ls.set('calcPad', !pad))}><${Icon} name="calculator" /> ${pad ? 'Clavier du téléphone' : 'Calculatrice'}</button>
+      </div>
+      ${pad
+        ? html`<div class="calcpad">${KEYS.map((k) => html`<button class=${`ck ${/[÷×−+%()]/.test(k) ? 'op' : ''} ${k === 'C' ? 'clr' : ''}`} onClick=${() => press(k)}>${k}</button>`)}</div>`
+        : null}
+    </${Card}>
 
     ${adding
       ? html`<${Card}>
