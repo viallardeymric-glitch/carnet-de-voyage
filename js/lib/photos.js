@@ -112,6 +112,37 @@ async function commonsNear(place, width) {
   return best(pages, place.name, 0.5);
 }
 
+// Galerie en plus des 10 photos Google (leur maximum) : photos libres de Wikimedia Commons
+// prises sur place. D'abord celles dont le nom évoque le lieu, puis celles prises à quelques mètres.
+export async function commonsGallery(place, max = 20) {
+  if (place?.lat == null) return [];
+  const key = `photo:gal:${place.lat.toFixed(4)},${place.lon.toFixed(4)}`;
+  const hit = ls.get(key);
+  if (hit) return hit;
+  try {
+    const d = await getJson(
+      `https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*&generator=geosearch&ggsnamespace=6&ggscoord=${place.lat}%7C${place.lon}&ggsradius=300&ggslimit=80&prop=imageinfo|coordinates&iiprop=url&iiurlwidth=900`
+    );
+    const words = (place.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[^a-z0-9]+/).filter((w) => w.length > 3);
+    const list = Object.values(d.query?.pages || {})
+      .filter((p) => /\.(jpe?g|webp)$/i.test(p.title) && p.imageinfo?.[0]?.thumburl)
+      .map((p) => {
+        const t = p.title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const c = p.coordinates?.[0];
+        const dist = c ? Math.hypot((c.lat - place.lat) * 111000, (c.lon - place.lon) * 111000 * Math.cos((place.lat * Math.PI) / 180)) : 999;
+        return { small: p.imageinfo[0].thumburl, big: commons(p.title.replace(/^File:/, ''), 1600), match: words.some((w) => t.includes(w)), dist };
+      })
+      .filter((x) => x.match || x.dist < 60)
+      .sort((a, b) => b.match - a.match || a.dist - b.dist)
+      .slice(0, max)
+      .map(({ small, big }) => ({ small, big }));
+    ls.set(key, list);
+    return list;
+  } catch {
+    return [];
+  }
+}
+
 async function resolve(place, city, width) {
   const t = place.tags || {};
   const steps = [];

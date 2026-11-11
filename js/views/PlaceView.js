@@ -5,7 +5,7 @@ import { useCollection } from '../core/store.js';
 import { getPosition } from '../core/location.js';
 import { categoryById } from '../data/categories.js';
 import { fetchWikiSummary } from '../lib/places.js';
-import { findPhoto, findArticle, articleText } from '../lib/photos.js';
+import { findPhoto, findArticle, articleText, commonsGallery } from '../lib/photos.js';
 import { VISITABLE, hasGuide, cachedGuide, writeGuide, hasGuideFor, guideTitle } from '../lib/guide.js';
 import { getParty } from '../lib/party.js';
 import { placeDetails, photoUrl, PRICE } from '../lib/google.js';
@@ -39,8 +39,15 @@ export default function PlaceView() {
   const [me, setMe] = useState(null);
   const [mode, setMode] = useState('walk');
   const [ohReady, setOhReady] = useState(false);
+  const [extra, setExtra] = useState([]);
   const live = initial && saved.find((s) => (initial.id && s.id === initial.id) || (initial.osmId && s.osmId === initial.osmId));
   const place = live || initial;
+  useEffect(() => {
+    let alive = true;
+    setExtra([]);
+    if (place && !place.isLodging) commonsGallery(place).then((l) => alive && setExtra(l));
+    return () => (alive = false);
+  }, [place?.lat, place?.lon, place?.name]);
   const [note, setNote] = useState(place?.note || '');
 
   useEffect(() => {
@@ -115,8 +122,9 @@ export default function PlaceView() {
     ${link ? html`<${Icon} name="chevron-right" cls="muted small" />` : null}
   </a>`;
 
-  const photos = (g?.photos || []).slice(0, 8).map((p) => photoUrl(p.name, 900));
-  const bigPhotos = (g?.photos || []).slice(0, 8).map((p) => photoUrl(p.name, 1600));
+  // Google donne au plus 10 photos ; on complète avec les photos libres de Wikimedia Commons.
+  const photos = [...(g?.photos || []).slice(0, 10).map((p) => photoUrl(p.name, 900)), ...extra.map((x) => x.small)];
+  const bigPhotos = [...(g?.photos || []).slice(0, 10).map((p) => photoUrl(p.name, 1600)), ...extra.map((x) => x.big)];
   const planDay = place.day ? tripDays(trip)[place.day - 1] : null;
   if (!photos.length && (wiki?.image || photo)) photos.push(wiki?.image || photo);
   const rating = g?.rating || place.rating;
