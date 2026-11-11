@@ -4,7 +4,7 @@ import { cityPhoto } from './lib/photos.js';
 import { html, render, useState, useEffect, useMemo } from '../vendor/preact.js';
 import { initStore, auth, fb, useDoc } from './core/store.js';
 import { ls, getMembers, consumeInvite, watchAppearance } from './core/config.js';
-import { hasPin, watchAutoLock, markSession } from './core/lock.js';
+import { hasPin, needsLock, watchAutoLock, markSession } from './core/lock.js';
 import { persistStorage } from './core/vault.js';
 import { AppCtx, TABS, currentRoute, back, useApp, go } from './core/app.js';
 import { DialogHost, Icon, Spinner } from './ui/components.js';
@@ -55,7 +55,7 @@ function App({ mode }) {
   const [members, setMembersState] = useState(getMembers());
   const [user, setUser] = useState(mode === 'firebase' ? undefined : null);
   const [pinOk, setPinOk] = useState(hasPin());
-  const [locked, setLocked] = useState(hasPin());
+  const [locked, setLocked] = useState(needsLock());
   const [tripId, setTripIdState] = useState(ls.get('tripId'));
   const [route, setRoute] = useState(currentRoute());
   const trip = useDoc(tripId && (mode === 'local' || user) ? `trips/${tripId}` : null);

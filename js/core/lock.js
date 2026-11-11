@@ -16,6 +16,19 @@ async function derive(pin, saltHex) {
 }
 
 export const hasPin = () => !!ls.get('pin');
+
+// Quand verrouiller l'application (réglage propre à chaque téléphone) :
+//  'never' : jamais (le téléphone est déjà protégé) ; le coffre-fort, lui, demande toujours Face ID
+//  'start' : seulement à l'ouverture de l'app (pas au retour depuis l'arrière-plan)
+//  'auto'  : à l'ouverture et après plus d'une minute en arrière-plan
+export const LOCK_MODES = [
+  { id: 'never', label: 'Jamais', sub: 'Le téléphone est déjà protégé. Le coffre-fort demande toujours Face ID.' },
+  { id: 'start', label: 'À l’ouverture', sub: 'Seulement quand l’app est relancée, pas en revenant de l’arrière-plan.' },
+  { id: 'auto', label: 'Après 1 min', sub: 'À l’ouverture et après plus d’une minute en arrière-plan.' },
+];
+export const lockMode = () => ls.get('lockMode', 'start');
+export const setLockMode = (m) => ls.set('lockMode', m);
+export const needsLock = () => hasPin() && lockMode() !== 'never';
 export const pinLength = () => ls.get('pin')?.length || 4;
 
 export async function setPin(pin) {
@@ -94,7 +107,7 @@ export function watchAutoLock(onLock) {
   let hiddenAt = null;
   const handler = () => {
     if (document.visibilityState === 'hidden') hiddenAt = Date.now();
-    else if (hiddenAt && (Date.now() - hiddenAt) / 1000 > AUTO_LOCK_SECONDS) {
+    else if (hiddenAt && lockMode() === 'auto' && (Date.now() - hiddenAt) / 1000 > AUTO_LOCK_SECONDS) {
       hiddenAt = null;
       onLock();
     }

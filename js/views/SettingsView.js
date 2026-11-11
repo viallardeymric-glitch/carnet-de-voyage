@@ -1,7 +1,7 @@
 import { html, useEffect, useState } from '../../vendor/preact.js';
 import { useApp } from '../core/app.js';
 import { setFirebaseConfig, parseFirebaseConfig, inviteLink, setMembers, ls, THEMES, applyAppearance } from '../core/config.js';
-import { biometricsSupported, biometricsEnabled, enableBiometrics, disableBiometrics, resetPin } from '../core/lock.js';
+import { biometricsSupported, biometricsEnabled, enableBiometrics, disableBiometrics, resetPin, LOCK_MODES, lockMode, setLockMode } from '../core/lock.js';
 import { sharingEnabled, setSharingEnabled } from '../core/location.js';
 import { AI_PROVIDERS, getAiKeys, setAiKey } from '../lib/assistant.js';
 import { getGoogleKey, setGoogleKey } from '../lib/photos.js';
@@ -75,6 +75,7 @@ export default function SettingsView() {
     toast(`${n} éléments envoyés`);
   };
 
+  const [lock_, setLock_] = useState(lockMode());
   const row = (label, sub, control) => html`<div class="row" style="padding:8px 0"><div class="grow"><div class="bold">${label}</div>${sub ? html`<div class="muted xs">${sub}</div>` : null}</div>${control}</div>`;
 
   return html`<div class="page">
@@ -119,6 +120,9 @@ export default function SettingsView() {
 
     <${Subtitle}>Sécurité</${Subtitle}>
     <${Card}>
+      <div class="bold" style="padding-top:8px">Verrouiller l’application</div>
+      <div class="chips" style="margin:6px 0 2px">${LOCK_MODES.map((m) => html`<${Chip} label=${m.label} active=${lock_ === m.id} onClick=${() => (setLockMode(m.id), setLock_(m.id))} />`)}</div>
+      <div class="muted xs mb">${LOCK_MODES.find((m) => m.id === lock_)?.sub}</div>
       ${row('Face ID / Touch ID', bioOk ? 'Déverrouillage rapide (app et coffre-fort)' : 'Non disponible ici', html`<${Switch} checked=${bioOn} disabled=${!bioOk} onChange=${toggleBio} />`)}
       <${Button} title="Verrouiller maintenant" icon="lock" variant="ghost" small onClick=${lock} />
       <${Button} title="Changer de code PIN" icon="key" variant="ghost" small onClick=${async () => (await confirm('Changer de code ?', 'Vous allez choisir un nouveau code.', 'Continuer', false)) && (resetPin(), pinChanged())} />
@@ -168,6 +172,6 @@ export default function SettingsView() {
     <${SafetyBox} title="Installer sur l'écran d'accueil" icon="mobile-screen">
       <p>Dans Safari : bouton Partager <b>⬆︎</b> › « Sur l'écran d'accueil ». L'app s'ouvre alors en plein écran, avec son icône, même hors-ligne.</p>
     </${SafetyBox}>
-    <div class="muted xs center">Carnet de Voyage · version 5.4</div>
+    <div class="muted xs center">Carnet de Voyage · version 5.5</div>
   </div>`;
 }
