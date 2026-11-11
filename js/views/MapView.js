@@ -96,6 +96,19 @@ function decorate(m) {
   m.addLayer({ id: 'routes', type: 'line', source: 'routes', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': ['get', 'color'], 'line-width': 4.5 } });
 }
 
+// Regroupe le même lieu prévu plusieurs fois (même nom, ou pile au même endroit), dans l'ordre du planning.
+const sameName = (a, b) => (a.name || '').trim().toLowerCase() === (b.name || '').trim().toLowerCase();
+function groupSpots(list) {
+  const groups = [];
+  const sorted = [...list].sort((a, b) => (a.day || 99) - (b.day || 99) || (a.order ?? 0) - (b.order ?? 0));
+  for (const p of sorted) {
+    const g = groups.find((x) => (sameName(x[0], p) && distanceMeters(x[0], p) < 300) || distanceMeters(x[0], p) < 8);
+    if (g) g.push(p);
+    else groups.push([p]);
+  }
+  return groups;
+}
+
 function el(cls, inner, style = '') {
   const d = document.createElement('div');
   d.className = cls;
@@ -392,21 +405,33 @@ export default function MapView() {
     if (!ready) return;
     draw(
       'saved',
-      visibleSaved.map((p) => {
-        // Bulle photo flottante : la photo du lieu, cerclée de la couleur du jour, avec son numéro.
+      // Un même endroit prévu plusieurs fois (ex. le matin en n° 1 et le soir en n° 5) : une seule
+      // bulle avec toutes ses pastilles et tous ses horaires, au lieu de bulles empilées.
+      groupSpots(visibleSaved).map((grp) => {
+        const p = grp[0];
         const c = categoryById(p.category);
         const color = p.day ? dayColor(p.day) : p.favorite ? 'var(--pink)' : c.color;
-        const n = p.day ? (plan[p.day] || []).indexOf(p) + 1 : 0;
-        const badge = p.day ? `<em>${n || '•'}</em>` : p.favorite ? '<em><i class="fa-solid fa-heart"></i></em>' : '';
-        const dd = p.day ? days[p.day - 1] : null;
-        const tm = dd ? `<u class="mtime">${formatDay(dd.iso).split(' ').slice(0, 2).join(' ')}${normTime(p.time) ? ` · ${normTime(p.time)}` : ''}</u>` : '';
-        const node = el(`mk-photo ${p.status === 'visited' ? 'done' : ''}`, `<span class="ph"><i class="fa-solid fa-${c.icon}"></i></span>${badge}${tm}`, `--c:${color}`);
+        const nums = grp.filter((x) => x.day).map((x) => (plan[x.day] || []).indexOf(x) + 1 || '•');
+        const badge = nums.length ? `<em>${nums.join(' · ')}</em>` : p.favorite ? '<em><i class="fa-solid fa-heart"></i></em>' : '';
+        const when = grp
+          .filter((x) => x.day && days[x.day - 1])
+          .map((x, i, arr) => {
+            const dayTxt = formatDay(days[x.day - 1].iso).split(' ').slice(0, 2).join(' ');
+            const t = normTime(x.time);
+            const sameDay = i > 0 && arr[i - 1].day === x.day;
+            return sameDay ? t || '' : `${dayTxt}${t ? ` · ${t}` : ''}`;
+          })
+          .filter(Boolean);
+        const tm = when.length ? `<u class="mtime">${when.join(' · ')}</u>` : '';
+        const node = el(`mk-photo ${grp.every((x) => x.status === 'visited') ? 'done' : ''}`, `<span class="ph"><i class="fa-solid fa-${c.icon}"></i></span>${badge}${tm}`, `--c:${color}`);
         const ph = node.querySelector('.ph');
         const set = (url) => url && ((ph.style.backgroundImage = `url("${url}")`), ph.classList.add('has'));
         const quick = cachedPhoto(p, 120);
         if (quick) set(quick);
         else findPhoto(p, { city: trip?.city?.name, width: 120 }).then(set).catch(() => {});
-        return [node, p.lon, p.lat, () => setSel(p)];
+        // Toucher plusieurs fois : passe d'un passage à l'autre.
+        let k = 0;
+        return [node, p.lon, p.lat, () => setSel(grp[k++ % grp.length])];
       })
     );
   }, [ready, visibleSaved, plan]);
